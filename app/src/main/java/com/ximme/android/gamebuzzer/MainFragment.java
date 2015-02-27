@@ -1,7 +1,8 @@
 package com.ximme.android.gamebuzzer;
 
-import android.support.v4.app.Fragment;
 import android.os.Bundle;
+import android.support.v4.app.Fragment;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -38,15 +39,21 @@ public class MainFragment extends Fragment {
                 // This executes when the Host button is clicked
                 // TODO implement this - should switch to HostFragment
 
+                Log.d(TAG, "Host role selected");
+                ((MainActivity) getActivity()).onHostRoleSelected();
+
             }
         });
 
-        mContestant = (Button) v.findViewById(R.id.host);
+        mContestant = (Button) v.findViewById(R.id.contestant);
         mContestant.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 // This executes when the Contestant button is clicked
-                // TODO implement this - should switch to ContestantFragment
+                // TODO implement this - should switch to FindHostFragment
+
+                ((MainActivity)getActivity()).onContestantSelected();
+                Log.d(TAG, "Contestant role selected");
 
             }
         });

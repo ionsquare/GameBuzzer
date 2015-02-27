@@ -1,6 +1,7 @@
 package com.ximme.android.gamebuzzer;
 
 import android.os.Bundle;
+import android.support.v4.app.FragmentManager;
 import android.support.v7.app.ActionBarActivity;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -40,6 +41,37 @@ public class MainActivity extends ActionBarActivity {
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    public void onHostRoleSelected(){
+        HostFragment hostFragment = new HostFragment();
+        FragmentManager fragmentManager = getSupportFragmentManager();
+        fragmentManager.beginTransaction()
+                .replace(R.id.container, hostFragment)
+                .addToBackStack(null)
+                .commit();
+    }
+
+    public void onContestantSelected(){
+        FindHostFragment findHostFragment = new FindHostFragment();
+        FragmentManager fragmentManager = getSupportFragmentManager();
+        fragmentManager.beginTransaction()
+                .replace(R.id.container, findHostFragment)
+                .addToBackStack(null)
+                .commit();
+    }
+
+    public void onJoinHost(){
+        // TODO This will need to carry some data about what host to join
+        // Not sure what that data will be yet
+        // Will probably need to use newInstance strategy
+
+        ContestantFragment contestantFragment = new ContestantFragment();
+        FragmentManager fragmentManager = getSupportFragmentManager();
+        fragmentManager.beginTransaction()
+                .replace(R.id.container, contestantFragment)
+                .addToBackStack(null)
+                .commit();
     }
 
 }
