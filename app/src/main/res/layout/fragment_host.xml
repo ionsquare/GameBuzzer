@@ -10,30 +10,38 @@
 
     <TextView
         android:id="@+id/heading"
-        android:text="@string/main_heading"
+        android:text="@string/host_heading"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textSize="40sp"
+        android:textSize="50sp"
         android:gravity="center"/>
 
     <Button
-        android:id="@+id/host"
-        android:layout_width="170dp"
-        android:layout_height="75dp"
+        android:id="@+id/enable_buzzers"
+        android:layout_width="300dp"
+        android:layout_height="200dp"
         android:layout_below="@id/heading"
-        android:layout_centerHorizontal="true"
+        android:layout_centerInParent="true"
         android:layout_marginTop="50dp"
-        android:text="@string/role_host"
+        android:text="@string/host_enable_buzzers"
         android:textSize="20sp"/>
 
-    <Button
-        android:id="@+id/contestant"
-        android:layout_width="170dp"
-        android:layout_height="75dp"
-        android:layout_below="@id/host"
-        android:layout_centerHorizontal="true"
-        android:layout_marginTop="50dp"
-        android:text="@string/role_contestant"
-        android:textSize="20sp"/>
+    <TextView
+        android:id="@+id/players_heading"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:textSize="20sp"
+        android:text="@string/host_player_list_label"/>
+
+    <TextView
+        android:id="@+id/players"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="20dp"
+        android:layout_toRightOf="@id/players_heading"
+        android:layout_alignParentBottom="true"
+        android:textSize="20sp"
+        android:text="0"/>
 
 </RelativeLayout>
