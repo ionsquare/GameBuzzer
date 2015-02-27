@@ -29,8 +29,29 @@ public class MainFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
 
-        View rootView = inflater.inflate(R.layout.fragment_main, container, false);
-        return rootView;
+        View v = inflater.inflate(R.layout.fragment_main, container, false);
+
+        mHost = (Button) v.findViewById(R.id.host);
+        mHost.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // This executes when the Host button is clicked
+                // @TODO implement this - should switch to HostFragment
+
+            }
+        });
+
+        mContestant = (Button) v.findViewById(R.id.host);
+        mContestant.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // This executes when the Contestant button is clicked
+                // @TODO implement this - should switch to ContestantFragment
+
+            }
+        });
+
+        return v;
     }
 
 }
