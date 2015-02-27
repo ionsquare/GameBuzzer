@@ -32,7 +32,7 @@
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:textSize="20sp"
-        android:text="@string/host_player_list_label"/>
+        android:text="@string/player_list_label"/>
 
     <TextView
         android:id="@+id/players"
