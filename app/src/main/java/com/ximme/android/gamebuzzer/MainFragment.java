@@ -36,7 +36,7 @@ public class MainFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 // This executes when the Host button is clicked
-                // @TODO implement this - should switch to HostFragment
+                // TODO implement this - should switch to HostFragment
 
             }
         });
@@ -46,7 +46,7 @@ public class MainFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 // This executes when the Contestant button is clicked
-                // @TODO implement this - should switch to ContestantFragment
+                // TODO implement this - should switch to ContestantFragment
 
             }
         });
