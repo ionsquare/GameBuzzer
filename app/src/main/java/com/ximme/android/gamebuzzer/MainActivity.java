@@ -3,6 +3,8 @@ package com.ximme.android.gamebuzzer;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
+import android.net.wifi.p2p.WifiP2pConfig;
+import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pManager;
 import android.net.wifi.p2p.WifiP2pManager.Channel;
 import android.os.Bundle;
@@ -10,6 +12,7 @@ import android.support.v4.app.FragmentManager;
 import android.support.v7.app.ActionBarActivity;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.Toast;
 
 
 public class MainActivity extends ActionBarActivity {
@@ -89,6 +92,28 @@ public class MainActivity extends ActionBarActivity {
                 .replace(R.id.container, hostFragment)
                 .addToBackStack(null)
                 .commit();
+
+        // Initiate peer discovery
+        mManager.discoverPeers(mChannel, new WifiP2pManager.ActionListener() {
+
+            @Override
+            public void onSuccess() {
+                // Code for when the discovery initiation is successful goes here.
+                // No services have actually been discovered yet, so this method
+                // can often be left blank.  Code for peer discovery goes in the
+                // onReceive method, detailed below.
+                Toast.makeText(MainActivity.this, "Discovery Initiated",
+                        Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onFailure(int reasonCode) {
+                // Code for when the discovery initiation fails goes here.
+                // Alert the user that something went wrong.
+                Toast.makeText(MainActivity.this, "Discovery Failed : " + reasonCode,
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     public void onContestantSelected(){
@@ -116,6 +141,21 @@ public class MainActivity extends ActionBarActivity {
     // Broadcast Receiver stuff
     public void setIsWifiP2pEnabled(Boolean enabled){
         this.isWifiP2pEnabled = enabled;
+    }
+
+    public void showDeviceDetails(WifiP2pDevice device){
+
+    }
+    public void cancelDisconnect(){
+
+    }
+
+    public void connect(WifiP2pConfig config){
+
+    }
+
+    public void disconnect(){
+
     }
 
 }

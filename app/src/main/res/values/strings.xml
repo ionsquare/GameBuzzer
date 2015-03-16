@@ -22,5 +22,6 @@
     <string name="player_list_label">Players joined:</string>
     <string name="find_host_heading">Find Host</string>
     <string name="searching_hosts">Searching for Hosts...</string>
+    <string name="empty_message">No peer devices found</string>
 
 </resources>
