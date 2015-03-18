@@ -1,6 +1,7 @@
 package com.ximme.android.gamebuzzer;
 
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.util.TypedValue;
@@ -23,6 +24,7 @@ import java.net.DatagramSocket;
 public class FindHostFragment extends Fragment {
     private static final String TAG = ContestantFragment.class.getSimpleName();
 
+    private Handler mHandler;
     // Layout elements
     private LinearLayout mFindHostList;
     private TextView mSearchingForHosts;
@@ -47,11 +49,32 @@ public class FindHostFragment extends Fragment {
         mSearchingForHosts = (TextView) v.findViewById(R.id.searching_for_hosts);
         mFindHostList = (LinearLayout) v.findViewById(R.id.find_host_list);
 
+
+        /*
+        mHandler = new Handler(Looper.getMainLooper()) {
+            @Override
+            public void handleMessage(Message inputMessage){
+                Bundle bundle = inputMessage.getData();
+                Toast.makeText(getActivity(), bundle.getString("data"), Toast.LENGTH_LONG).show();
+            }
+        };
+        //*/
+
+        try {
+            Log.d(TAG, "Starting thread?");
+//            new Thread(new HostRunnable(mHandler, Utils.getBroadcastAddress(getActivity()))).start();
+            new Thread(new HostRunnable(getActivity(), Utils.getBroadcastAddress(getActivity()))).start();
+            Log.d(TAG, "Thread Started?");
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+        /*
         new Thread(new Runnable() {
             public void run() {
                 receiveBroadcast();
             }
         }).start();
+        //*/
 
         // TODO Remove this section when host/contestant connectivity works ========================
         // Add a TextView to the LinearLayout

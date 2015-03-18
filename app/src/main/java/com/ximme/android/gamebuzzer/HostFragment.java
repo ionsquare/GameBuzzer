@@ -1,6 +1,9 @@
 package com.ximme.android.gamebuzzer;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -26,6 +29,8 @@ public class HostFragment extends Fragment {
     // Layout elements
     private Button mEnableBuzzers;
 
+    Handler mHandler;
+
     private int count = 0;
 
     public HostFragment(){
@@ -41,35 +46,41 @@ public class HostFragment extends Fragment {
         Log.d(TAG, "Broadcast IP: " + ((MainActivity)getActivity()).broadcastIP);
         Log.d(TAG, "Device IP: " + ((MainActivity)getActivity()).thisDeviceIP);
 
+        mHandler = new Handler(Looper.getMainLooper()) {
+            @Override
+            public void handleMessage(Message inputMessage){
+
+            }
+        };
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                             Bundle savedInstanceState) {
-        Log.d(TAG, "onCreateView()");
+         public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                                  Bundle savedInstanceState) {
+             Log.d(TAG, "onCreateView()");
 
-        View v = inflater.inflate(R.layout.fragment_host, container, false);
+             View v = inflater.inflate(R.layout.fragment_host, container, false);
 
-        mEnableBuzzers = (Button) v.findViewById(R.id.enable_buzzers);
-        mEnableBuzzers.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                // This executes when the Enable Buzzers button is clicked
-                // TODO Send message to contestants to enable buzzers
+             mEnableBuzzers = (Button) v.findViewById(R.id.enable_buzzers);
+             mEnableBuzzers.setOnClickListener(new View.OnClickListener() {
+                 @Override
+                 public void onClick(View v) {
+                     // This executes when the Enable Buzzers button is clicked
+                     // TODO Send message to contestants to enable buzzers
 
-                new Thread(new Runnable() {
-                    public void run() {
-                        sendUDPMessage("sendUDPMessage");
-//                        altUDPMessage("altUDPMessage");
-                    }
-                }).start();
+                     new Thread(new Runnable() {
+                         public void run() {
+                             sendUDPMessage("sendUDPMessage");
+     //                        altUDPMessage("altUDPMessage");
+                         }
+                     }).start();
 
 
-            }
-        });
+                 }
+             });
 
-        return v;
-    }
+             return v;
+         }
 
     private void sendUDPMessage(String msg) {
         Log.d(TAG, "sendUDPMessage()");

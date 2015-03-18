@@ -10,7 +10,7 @@ import android.view.MenuItem;
 public class MainActivity extends ActionBarActivity {
     private static String TAG = MainActivity.class.getSimpleName();
 
-    public static int port = 2769;
+    public static final int port = 2769;
     public String broadcastIP;
     public String thisDeviceIP;
 
