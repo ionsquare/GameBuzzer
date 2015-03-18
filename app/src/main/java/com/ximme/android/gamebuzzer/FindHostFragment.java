@@ -10,7 +10,6 @@ import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -47,6 +46,12 @@ public class FindHostFragment extends Fragment {
 
         mSearchingForHosts = (TextView) v.findViewById(R.id.searching_for_hosts);
         mFindHostList = (LinearLayout) v.findViewById(R.id.find_host_list);
+
+        new Thread(new Runnable() {
+            public void run() {
+                receiveBroadcast();
+            }
+        }).start();
 
         // TODO Remove this section when host/contestant connectivity works ========================
         // Add a TextView to the LinearLayout
@@ -104,7 +109,7 @@ public class FindHostFragment extends Fragment {
                 String data = new String(packet.getData()).trim();
                 Log.i(TAG, "Packet received; data: " + data);
 
-                Toast.makeText(getActivity(), data, Toast.LENGTH_LONG).show();
+//                Toast.makeText(getActivity(), data, Toast.LENGTH_LONG).show();
 
                 /*
                 // Send the packet data back to the UI thread
