@@ -93,6 +93,10 @@ public class MainActivity extends ActionBarActivity {
                 .addToBackStack(null)
                 .commit();
 
+        discoverPeers();
+    }
+
+    public void discoverPeers(){
         // Initiate peer discovery
         mManager.discoverPeers(mChannel, new WifiP2pManager.ActionListener() {
 
@@ -123,6 +127,8 @@ public class MainActivity extends ActionBarActivity {
                 .replace(R.id.container, findHostFragment)
                 .addToBackStack(null)
                 .commit();
+
+        discoverPeers();
     }
 
     public void onJoinHost(){
