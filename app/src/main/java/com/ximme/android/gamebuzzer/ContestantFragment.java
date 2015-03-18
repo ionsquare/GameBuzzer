@@ -1,11 +1,16 @@
 package com.ximme.android.gamebuzzer;
 
-import android.support.v4.app.Fragment;
 import android.os.Bundle;
+import android.support.v4.app.Fragment;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.Toast;
+
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 
 /**
  * TODO List of things that need to be done
@@ -41,11 +46,30 @@ public class ContestantFragment extends Fragment {
             public void onClick(View v) {
                 // This executes when the Host button is clicked
                 // TODO implement this - send buzz message to host
+                receiveBroadcast();
 
             }
         });
 
         return v;
+    }
+
+    private void receiveBroadcast(){
+        Log.d(TAG, "Waiting for broadcast");
+        Toast.makeText(getActivity(), "Waiting for broadcast", Toast.LENGTH_LONG).show();
+
+        int port = ((MainActivity)getActivity()).port;
+
+        try {
+            DatagramSocket socket = new DatagramSocket(port);
+            socket.setBroadcast(true);
+
+            byte[] buf = new byte[1024];
+            DatagramPacket packet = new DatagramPacket(buf, buf.length);
+            socket.receive(packet);
+        } catch(Exception e){
+            e.printStackTrace();
+        }
     }
 
 }

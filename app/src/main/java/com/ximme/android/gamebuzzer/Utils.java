@@ -1,11 +1,25 @@
 package com.ximme.android.gamebuzzer;
 
-import java.io.*;
-import java.net.*;
-import java.util.*;
+import android.content.Context;
+import android.net.DhcpInfo;
+import android.net.wifi.WifiManager;
+
 import org.apache.http.conn.util.InetAddressUtils;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InterfaceAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.List;
+
 public class Utils {
+    private static final String TAG = Utils.class.getSimpleName();
 
     /**
      * Convert byte array to hex string
@@ -92,7 +106,7 @@ public class Utils {
 
     /**
      * Get IP address from first non-localhost interface
-     * @param ipv4  true=return ipv4, false=return ipv6
+     * @param useIPv4  true=return ipv4, false=return ipv6
      * @return  address or empty string
      */
     public static String getIPAddress(boolean useIPv4) {
@@ -120,4 +134,44 @@ public class Utils {
         return "";
     }
 
+    public static String getBroadcastIP(){
+        String found_bcast_address=null;
+        System.setProperty("java.net.preferIPv4Stack", "true");
+        try
+        {
+            Enumeration<NetworkInterface> niEnum = NetworkInterface.getNetworkInterfaces();
+            while (niEnum.hasMoreElements())
+            {
+                NetworkInterface ni = niEnum.nextElement();
+                if(!ni.isLoopback()){
+                    for (InterfaceAddress interfaceAddress : ni.getInterfaceAddresses())
+                    {
+                        found_bcast_address = interfaceAddress.getBroadcast().toString();
+                        found_bcast_address = found_bcast_address.substring(1);
+
+                    }
+                }
+            }
+        }
+        catch (SocketException e)
+        {
+            e.printStackTrace();
+        }
+
+        return found_bcast_address;
+    }
+
+    //*
+    public static InetAddress getBroadcastAddress(Context mContext) throws IOException {
+        WifiManager wifi = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
+        DhcpInfo dhcp = wifi.getDhcpInfo();
+        // handle null somehow
+
+        int broadcast = (dhcp.ipAddress & dhcp.netmask) | ~dhcp.netmask;
+        byte[] quads = new byte[4];
+        for (int k = 0; k < 4; k++)
+            quads[k] = (byte) ((broadcast >> k * 8) & 0xFF);
+        return InetAddress.getByAddress(quads);
+    }
+    //*/
 }

@@ -6,13 +6,14 @@ import android.support.v7.app.ActionBarActivity;
 import android.view.Menu;
 import android.view.MenuItem;
 
-import java.net.InterfaceAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.util.Enumeration;
-
 
 public class MainActivity extends ActionBarActivity {
+    private static String TAG = MainActivity.class.getSimpleName();
+
+    public static int port = 2769;
+    public String broadcastIP;
+    public String thisDeviceIP;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -23,30 +24,37 @@ public class MainActivity extends ActionBarActivity {
                     .add(R.id.container, new MainFragment())
                     .commit();
         }
-    }
 
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
+        try {
+            broadcastIP = Utils.getBroadcastIP();
+            thisDeviceIP = Utils.getIPAddress(true);
+        }catch(Exception e){
+            e.printStackTrace();
         }
-
-        return super.onOptionsItemSelected(item);
     }
+
+
+    @Override
+              public boolean onCreateOptionsMenu(Menu menu) {
+                  // Inflate the menu; this adds items to the action bar if it is present.
+                  getMenuInflater().inflate(R.menu.menu_main, menu);
+                  return true;
+              }
+
+    @Override
+              public boolean onOptionsItemSelected(MenuItem item) {
+                  // Handle action bar item clicks here. The action bar will
+                  // automatically handle clicks on the Home/Up button, so long
+                  // as you specify a parent activity in AndroidManifest.xml.
+                  int id = item.getItemId();
+
+                  //noinspection SimplifiableIfStatement
+                  if (id == R.id.action_settings) {
+                      return true;
+                  }
+
+                  return super.onOptionsItemSelected(item);
+              }
 
     public void onHostRoleSelected(){
         HostFragment hostFragment = new HostFragment();
@@ -77,33 +85,5 @@ public class MainActivity extends ActionBarActivity {
                 .replace(R.id.container, contestantFragment)
                 .addToBackStack(null)
                 .commit();
-    }
-
-    public static String getBroadcast(){
-        String found_bcast_address=null;
-        System.setProperty("java.net.preferIPv4Stack", "true");
-        try
-        {
-            Enumeration<NetworkInterface> niEnum = NetworkInterface.getNetworkInterfaces();
-            while (niEnum.hasMoreElements())
-            {
-                NetworkInterface ni = niEnum.nextElement();
-                if(!ni.isLoopback()){
-                    for (InterfaceAddress interfaceAddress : ni.getInterfaceAddresses())
-                    {
-
-                        found_bcast_address = interfaceAddress.getBroadcast().toString();
-                        found_bcast_address = found_bcast_address.substring(1);
-
-                    }
-                }
-            }
-        }
-        catch (SocketException e)
-        {
-            e.printStackTrace();
-        }
-
-        return found_bcast_address;
     }
 }
