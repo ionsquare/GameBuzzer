@@ -6,6 +6,11 @@ import android.support.v7.app.ActionBarActivity;
 import android.view.Menu;
 import android.view.MenuItem;
 
+import java.net.InterfaceAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.util.Enumeration;
+
 
 public class MainActivity extends ActionBarActivity {
 
@@ -74,4 +79,31 @@ public class MainActivity extends ActionBarActivity {
                 .commit();
     }
 
+    public static String getBroadcast(){
+        String found_bcast_address=null;
+        System.setProperty("java.net.preferIPv4Stack", "true");
+        try
+        {
+            Enumeration<NetworkInterface> niEnum = NetworkInterface.getNetworkInterfaces();
+            while (niEnum.hasMoreElements())
+            {
+                NetworkInterface ni = niEnum.nextElement();
+                if(!ni.isLoopback()){
+                    for (InterfaceAddress interfaceAddress : ni.getInterfaceAddresses())
+                    {
+
+                        found_bcast_address = interfaceAddress.getBroadcast().toString();
+                        found_bcast_address = found_bcast_address.substring(1);
+
+                    }
+                }
+            }
+        }
+        catch (SocketException e)
+        {
+            e.printStackTrace();
+        }
+
+        return found_bcast_address;
+    }
 }

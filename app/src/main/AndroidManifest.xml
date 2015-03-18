@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.ximme.android.gamebuzzer" >
 
+    <uses-permission
+        android:required="true"
+        android:name="android.permission.INTERNET"/>
+
     <application
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"

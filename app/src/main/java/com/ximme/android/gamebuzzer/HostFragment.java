@@ -1,5 +1,7 @@
 package com.ximme.android.gamebuzzer;
 
+import android.net.nsd.NsdServiceInfo;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.util.Log;
@@ -18,6 +20,9 @@ import android.widget.Button;
 public class HostFragment extends Fragment {
     private static final String TAG = HostFragment.class.getSimpleName();
 
+    private String broadcastIP;
+    private String thisDeviceIP;
+
     // Layout elements
     private Button mEnableBuzzers;
 
@@ -30,6 +35,13 @@ public class HostFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Log.d(TAG, "onCreate()");
+
+        broadcastIP = ((MainActivity) getActivity()).getBroadcast();
+        thisDeviceIP = Utils.getIPAddress(true);
+
+
+        Log.d(TAG, "Broadcast IP: " + broadcastIP);
+        Log.d(TAG, "Device IP: " + thisDeviceIP);
 
     }
 
@@ -53,4 +65,16 @@ public class HostFragment extends Fragment {
         return v;
     }
 
+    public void registerService(int port) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+            // Create the NsdServiceInfo object, and populate it.
+            NsdServiceInfo serviceInfo  = new NsdServiceInfo();
+
+            // The name is subject to change based on conflicts
+            // with other services advertised on the same network.
+            serviceInfo.setServiceName("gamebuzzer");
+            serviceInfo.setServiceType("_http._tcp.");
+            serviceInfo.setPort(port);
+        }
+    }
 }
