@@ -61,7 +61,7 @@ public class MainActivity extends ActionBarActivity {
                 .commit();
     }
 
-    public void onJoinHost(){
+    public void onJoinHost() {
         // TODO This will need to carry some data about what host to join
         // Not sure what that data will be yet
         // Will probably need to use newInstance strategy

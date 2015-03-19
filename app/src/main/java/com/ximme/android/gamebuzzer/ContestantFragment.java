@@ -1,11 +1,14 @@
 package com.ximme.android.gamebuzzer;
 
-import android.support.v4.app.Fragment;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
 import android.os.Bundle;
+import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+
 
 /**
  * TODO List of things that need to be done
@@ -17,6 +20,7 @@ public class ContestantFragment extends Fragment {
 
     // Layout elements
     private Button mBuzz;
+    private MediaPlayer player;
 
     public ContestantFragment(){
         // Empty Constructor, not necessary for anything but seems to be convention
@@ -25,7 +29,6 @@ public class ContestantFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
 
     }
 
@@ -40,8 +43,16 @@ public class ContestantFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 // This executes when the Host button is clicked
-                // TODO implement this - send buzz message to host
+                player = MediaPlayer.create(getActivity(), R.raw.buzzer);
+                player.setAudioStreamType(AudioManager.STREAM_MUSIC);
 
+                player.start();
+                player.setOnCompletionListener(new MediaPlayer.OnCompletionListener(){
+                        @Override
+                        public void onCompletion(MediaPlayer player){
+                            player.release();
+                        }
+                });
             }
         });
 
