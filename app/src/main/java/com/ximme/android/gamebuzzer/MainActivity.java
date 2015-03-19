@@ -10,7 +10,7 @@ import android.view.MenuItem;
 public class MainActivity extends ActionBarActivity {
     private static String TAG = MainActivity.class.getSimpleName();
 
-    public static final int port = 2769;
+    public static final int SERVERPORT = 2769;
     public String broadcastIP;
     public String thisDeviceIP;
 
@@ -74,12 +74,12 @@ public class MainActivity extends ActionBarActivity {
                 .commit();
     }
 
-    public void onJoinHost(){
+    public void onJoinHost(String hostAddress){
         // TODO This will need to carry some data about what host to join
         // Not sure what that data will be yet
         // Will probably need to use newInstance strategy
 
-        ContestantFragment contestantFragment = new ContestantFragment();
+        ContestantFragment contestantFragment = ContestantFragment.newInstance(hostAddress);
         FragmentManager fragmentManager = getSupportFragmentManager();
         fragmentManager.beginTransaction()
                 .replace(R.id.container, contestantFragment)

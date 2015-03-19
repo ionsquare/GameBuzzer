@@ -4,17 +4,17 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.support.v4.app.Fragment;
 import android.util.Log;
-import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewGroup.LayoutParams;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetAddress;
 
 /**
  * TODO List of things that need to be done
@@ -22,9 +22,13 @@ import java.net.DatagramSocket;
  */
 
 public class FindHostFragment extends Fragment {
-    private static final String TAG = ContestantFragment.class.getSimpleName();
+    private static final String TAG = FindHostFragment.class.getSimpleName();
 
+    // Network
     private Handler mHandler;
+    private InetAddress hostAddress = null;
+    private Thread listenerThread;
+
     // Layout elements
     private LinearLayout mFindHostList;
     private TextView mSearchingForHosts;
@@ -60,14 +64,7 @@ public class FindHostFragment extends Fragment {
         };
         //*/
 
-        try {
-            Log.d(TAG, "Starting thread?");
-//            new Thread(new HostRunnable(mHandler, Utils.getBroadcastAddress(getActivity()))).start();
-            new Thread(new HostRunnable(getActivity(), Utils.getBroadcastAddress(getActivity()))).start();
-            Log.d(TAG, "Thread Started?");
-        }catch(Exception e){
-            e.printStackTrace();
-        }
+
         /*
         new Thread(new Runnable() {
             public void run() {
@@ -78,6 +75,7 @@ public class FindHostFragment extends Fragment {
 
         // TODO Remove this section when host/contestant connectivity works ========================
         // Add a TextView to the LinearLayout
+        /*
         TextView placeHolder = new TextView(getActivity());
         placeHolder.setText("PlaceHolder Host for dev");
         placeHolder.setLayoutParams(new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
@@ -94,6 +92,7 @@ public class FindHostFragment extends Fragment {
                 ((MainActivity) getActivity()).onJoinHost();
             }
         });
+        //*/
         // TODO End of section to remove ===========================================================
 
 
@@ -106,46 +105,78 @@ public class FindHostFragment extends Fragment {
         return v;
     }
 
+    @Override
+    public void onResume(){
+        super.onResume();
+
+        // Listen for host broadcast
+        startListenerThread();
+    }
+
+    @Override
+    public void onPause(){
+        super.onPause();
+        listenerThread.interrupt();
+        Log.d(TAG, "Thread Interrupted");
+    }
+
     private void joinHost(){
 
     }
 
-    private void receiveBroadcast(){
-        int port = ((MainActivity)getActivity()).port;
-
-        try {
-            //Keep a socket open to listen to all the UDP trafic that is destined for this port
-//            DatagramSocket socket = new DatagramSocket(port, InetAddress.getByName("0.0.0.0"));
-            DatagramSocket socket = new DatagramSocket(port, Utils.getBroadcastAddress(getActivity()));
-            socket.setBroadcast(true);
-
-            while (true) {
-                Log.i(TAG, "Ready to receive broadcast packets!");
-
-                //Receive a packet
-                byte[] recvBuf = new byte[15000];
-                DatagramPacket packet = new DatagramPacket(recvBuf, recvBuf.length);
-                socket.receive(packet);
-
-                //Packet received
-                Log.i(TAG, "Packet received from: " + packet.getAddress().getHostAddress());
-                String data = new String(packet.getData()).trim();
-                Log.i(TAG, "Packet received; data: " + data);
-
-//                Toast.makeText(getActivity(), data, Toast.LENGTH_LONG).show();
-
-                /*
-                // Send the packet data back to the UI thread
-                Intent localIntent = new Intent(Constants.BROADCAST_ACTION)
-                        // Puts the data into the Intent
-                        .putExtra(Constants.EXTENDED_DATA_STATUS, data);
-                // Broadcasts the Intent to receivers in this app.
-                LocalBroadcastManager.getInstance(getActivity()).sendBroadcast(localIntent);
-                //*/
+    public void startListenerThread(){
+        listenerThread = new Thread(new Runnable() {
+            public void run() {
+                receiveBroadcast();
             }
-        } catch (IOException ex) {
-            Log.i(TAG, "Oops" + ex.getMessage());
-        }
+        });
+        listenerThread.start();
     }
 
+    private void receiveBroadcast(){
+        try {
+            //Keep a socket open to listen to all the UDP traffic that is destined for this port
+            DatagramSocket socket = new DatagramSocket(MainActivity.SERVERPORT,
+                    Utils.getBroadcastAddress(getActivity()));
+            socket.setBroadcast(true);
+
+            Log.i(TAG, "Ready to receive broadcast packets!");
+
+            //Receive a packet
+            byte[] recvBuf = new byte[15000];
+            DatagramPacket packet = new DatagramPacket(recvBuf, recvBuf.length);
+            socket.receive(packet);
+            socket.close();
+
+            //Packet received
+            Log.i(TAG, "Packet received from: " + packet.getAddress().getHostAddress());
+            String data = new String(packet.getData()).trim();
+            Log.i(TAG, "Packet received; data: " + data);
+
+            // Get host info
+            hostAddress = packet.getAddress();
+            Log.d(TAG, "Host address: " + hostAddress.getHostAddress());
+
+            makeText(data);
+
+            getActivity().runOnUiThread(new Runnable() {
+                public void run() {
+                    ((MainActivity) getActivity()).onJoinHost(hostAddress.getHostAddress());
+                }
+            });
+        } catch (IOException ex) {
+            Log.i(TAG, "Oops" + ex.getMessage());
+            makeText("There was an error, go back and try again");
+        }
+
+
+    }
+
+    private void makeText(final String text){
+        getActivity().runOnUiThread(new Runnable() {
+            public void run() {
+                Toast.makeText(getActivity(), text, Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
 }

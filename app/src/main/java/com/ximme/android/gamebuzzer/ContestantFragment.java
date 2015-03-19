@@ -1,6 +1,7 @@
 package com.ximme.android.gamebuzzer;
 
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -9,8 +10,15 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.Toast;
 
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.net.UnknownHostException;
 
 /**
  * TODO List of things that need to be done
@@ -20,17 +28,37 @@ import java.net.DatagramSocket;
 public class ContestantFragment extends Fragment {
     private static final String TAG = ContestantFragment.class.getSimpleName();
 
+    public static final String ARG_HOST_ADDRESS = "hostAddress";
+
+    // Network
+    private String SERVER_IP;
+    private Socket socket;
+    private Thread listenerThread;
+    Handler mHandler;
+
     // Layout elements
     private Button mBuzz;
 
-    public ContestantFragment(){
-        // Empty Constructor, not necessary for anything but seems to be convention
+    public static ContestantFragment newInstance(String hostAddress) {
+        ContestantFragment f = new ContestantFragment();
+
+        Bundle args = new Bundle();
+        args.putString(ARG_HOST_ADDRESS, hostAddress);
+        f.setArguments(args);
+
+        return f;
     }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        Bundle args = getArguments();
+        SERVER_IP = args.getString(ARG_HOST_ADDRESS);
+
+        Log.d(TAG, "SERVER_IP: " + SERVER_IP);
+
+        new Thread(new ClientThread()).start();
 
     }
 
@@ -46,7 +74,20 @@ public class ContestantFragment extends Fragment {
             public void onClick(View v) {
                 // This executes when the Host button is clicked
                 // TODO implement this - send buzz message to host
-                receiveBroadcast();
+
+                try{
+                    PrintWriter out = new PrintWriter(new BufferedWriter(
+                            new OutputStreamWriter(socket.getOutputStream())),
+                            true);
+                    out.println("Buzz!");
+                } catch (UnknownHostException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
 
             }
         });
@@ -54,22 +95,79 @@ public class ContestantFragment extends Fragment {
         return v;
     }
 
-    private void receiveBroadcast(){
-        Log.d(TAG, "Waiting for broadcast");
-        Toast.makeText(getActivity(), "Waiting for broadcast", Toast.LENGTH_LONG).show();
+    private void makeText(final String text){
+        getActivity().runOnUiThread(new Runnable() {
+            public void run() {
+                Toast.makeText(getActivity(), text, Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
 
-        int port = ((MainActivity)getActivity()).port;
+    class ClientThread implements Runnable {
 
-        try {
-            DatagramSocket socket = new DatagramSocket(port);
-            socket.setBroadcast(true);
+        @Override
+        public void run() {
 
-            byte[] buf = new byte[1024];
-            DatagramPacket packet = new DatagramPacket(buf, buf.length);
-            socket.receive(packet);
-        } catch(Exception e){
-            e.printStackTrace();
+            try {
+                InetAddress hostAddress = InetAddress.getByName(SERVER_IP);
+
+                socket = new Socket(hostAddress, MainActivity.SERVERPORT);
+
+                // Socket intialized, start listener thread
+                // This will listen for buzzer block instruction
+                listenerThread = new Thread(new ListenerThread(socket));
+                listenerThread.start();
+
+            } catch (UnknownHostException e1) {
+                e1.printStackTrace();
+            } catch (IOException e1) {
+                e1.printStackTrace();
+            }
+
+        }
+
+    }
+
+    class ListenerThread implements Runnable {
+        private Socket socket;
+        private BufferedReader input;
+
+        ListenerThread(Socket socket){
+            this.socket = socket;
+            try{
+                this.input = new BufferedReader(new InputStreamReader(this.socket.getInputStream()));
+            }catch(IOException e){
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void run() {
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    String read = input.readLine();
+                    mHandler.post(new updateUIThread(read));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
         }
     }
+
+    class updateUIThread implements Runnable {
+        private String msg;
+
+        public updateUIThread(String str) {
+            this.msg = str;
+        }
+
+        @Override
+        public void run() {
+            // text.setText(text.getText().toString()+"Client Says: "+ msg + "\n");
+            makeText(msg);
+            // TODO disable buzzer
+        }
+    }
+
 
 }
