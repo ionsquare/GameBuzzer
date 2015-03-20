@@ -73,29 +73,31 @@ public class ContestantFragment extends Fragment {
         mBuzz.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // This executes when the Host button is clicked
-                // TODO implement this - send buzz message to host
-
-                new Thread(new Runnable() {
-                    public void run() {
-                        PrintWriter out = null;
-                        try {
-                            out = new PrintWriter(new BufferedWriter(
-                                    new OutputStreamWriter(socket.getOutputStream())),
-                                    true);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                        Log.d(TAG, "Sending Buzz message");
-                        out.println("Buzz!");
-                        Log.d(TAG, "Buzz message sent");
-                    }
-                }).start();
-
+                // Disable button
+                mBuzz.setEnabled(false);
+                sendBuzzMsg();
             }
         });
 
         return v;
+    }
+
+    private void sendBuzzMsg(){
+        new Thread(new Runnable() {
+            public void run() {
+                PrintWriter out = null;
+                try {
+                    out = new PrintWriter(new BufferedWriter(
+                            new OutputStreamWriter(socket.getOutputStream())),
+                            true);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                Log.d(TAG, "Sending Buzz message");
+                out.println(MainActivity.MSG_BUZZ_REQUEST);
+                Log.d(TAG, "Buzz message sent");
+            }
+        }).start();
     }
 
     class ClientThread implements Runnable {
@@ -167,17 +169,15 @@ public class ContestantFragment extends Fragment {
 
         @Override
         public void run() {
-            // text.setText(text.getText().toString()+"Client Says: "+ msg + "\n");
-            makeText(msg);
-            if(msg == "disable"){
-                // TODO disable buzzer
-
-            }else if(msg == "enable"){
-                // TODO enable buzzer
-
+            if(msg.equals(MainActivity.MSG_DISABLE)){
+                mBuzz.setEnabled(false);
+            }else if(msg.equals(MainActivity.MSG_ENABLE)){
+                mBuzz.setEnabled(true);
+            }else if(msg.equals(MainActivity.MSG_BUZZ_WIN)){
+                // TODO play buzz sound
+                makeText("Buzz win!");
             }else{
-                makeText(msg);
-                // makeText("Unrecognized action");
+                makeText("Unrecognized action: " + msg);
             }
         }
     }

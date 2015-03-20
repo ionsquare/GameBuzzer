@@ -43,6 +43,9 @@ public class HostFragment extends Fragment {
     private boolean fragmentIsActive = false;
     private static final int BROADCASTINTERVAL = 10000;     // Milliseconds
     private ArrayList<ClientConnection> clientConnectionList = new ArrayList<>();
+    private int nextClientID = 0;
+
+    private boolean buzzersEnabled = false;
 
     public HostFragment(){
         // Empty Constructor, not necessary for anything but seems to be convention
@@ -55,7 +58,7 @@ public class HostFragment extends Fragment {
         Log.d(TAG, "onCreate()");
 
         Log.d(TAG, "Broadcast IP: " + ((MainActivity)getActivity()).broadcastIP);
-        Log.d(TAG, "Device IP: " + ((MainActivity)getActivity()).thisDeviceIP);
+        Log.d(TAG, "Device IP: " + ((MainActivity) getActivity()).thisDeviceIP);
 
         updateConversationHandler = new Handler();
     }
@@ -158,9 +161,33 @@ public class HostFragment extends Fragment {
             Log.d(TAG, "Enable buzzers");
             Log.d(TAG, "client list size: ");
 
+            buzzersEnabled = true;
             for(ClientConnection client: clientConnectionList){
                 Log.d(TAG, "Attempting to enable a buzzer");
                 client.changeBuzzerState(true);
+            }
+        }
+    }
+
+    public void startDisableOthersThread(int callingClientID){
+        new Thread(new DisableOthersThread(callingClientID)).start();
+    }
+
+    public class DisableOthersThread implements Runnable {
+        int callingClientID;
+
+        DisableOthersThread(int callingClientID){
+            this.callingClientID = callingClientID;
+        }
+
+        @Override
+        public void run() {
+            for(ClientConnection client: clientConnectionList){
+                if(client.clientID != callingClientID) {
+                    client.changeBuzzerState(false);
+                }else{
+                    client.sendBuzzWin();
+                }
             }
         }
     }
@@ -169,11 +196,15 @@ public class HostFragment extends Fragment {
         private Thread listenerThread;
         private Socket socket;
         private PrintWriter out;
+        public int clientID;
 
-        public ClientConnection(Socket socket){
+        public ClientConnection(int id, Socket socket){
             Log.d(TAG, "ClientConnection() constructor");
+
+            clientID = id;
             this.socket = socket;
-            CommunicationThread commThread = new CommunicationThread((this.socket));
+
+            CommunicationThread commThread = new CommunicationThread(clientID, this.socket);
             listenerThread = new Thread(commThread);
             listenerThread.start();
             Log.d(TAG, "ClientConnection() listenerThread started");
@@ -192,12 +223,21 @@ public class HostFragment extends Fragment {
                 public void run() {
                     if(enabled == true){
                         Log.d(TAG, "changeBuzzerState(): Enable");
-                        out.println("Enable Buzzer");
+                        out.println(MainActivity.MSG_ENABLE);
                     }else{
                         Log.d(TAG, "changeBuzzerState(): Disable");
-                        out.println("Disable Buzzer");
+                        out.println(MainActivity.MSG_DISABLE);
                     }
 
+                }
+            }).start();
+        }
+
+        public void sendBuzzWin(){
+            new Thread(new Runnable() {
+                public void run() {
+                    Log.d(TAG, "Sending buzz win notification");
+                    out.println(MainActivity.MSG_BUZZ_WIN);
                 }
             }).start();
         }
@@ -228,10 +268,8 @@ public class HostFragment extends Fragment {
                     Log.d(TAG, "Listening for socket connection");
                     socket = serverSocket.accept();
                     Log.d(TAG, "Accepted socket");
-                    ClientConnection newClient = new ClientConnection(socket);
+                    ClientConnection newClient = new ClientConnection(nextClientID++, socket);
                     clientConnectionList.add(newClient);
-                    //CommunicationThread commThread = new CommunicationThread(socket);
-                    //new Thread(commThread).start();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -241,10 +279,12 @@ public class HostFragment extends Fragment {
     }
 
     class CommunicationThread implements Runnable {
+        private int clientID;
         private Socket clientSocket;
         private BufferedReader input;
 
-        public CommunicationThread(Socket clientSocket) {
+        public CommunicationThread(int clientID, Socket clientSocket) {
+            this.clientID = clientID;
             this.clientSocket = clientSocket;
 
             try {
@@ -264,7 +304,7 @@ public class HostFragment extends Fragment {
                         // Connection was terminated, exit the loop
                         break;
                     }
-                    updateConversationHandler.post(new updateUIThread(read));
+                    updateConversationHandler.post(new updateUIThread(clientID, read));
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -275,14 +315,20 @@ public class HostFragment extends Fragment {
 
     class updateUIThread implements Runnable {
         private String msg;
+        private int clientID;
 
-        public updateUIThread(String str) {
+        public updateUIThread(int clientID, String str) {
             this.msg = str;
+            this.clientID = clientID;
         }
 
         @Override
         public void run() {
-            // text.setText(text.getText().toString()+"Client Says: "+ msg + "\n");
+            if(msg.equals(MainActivity.MSG_BUZZ_REQUEST) && buzzersEnabled){
+                // This should be thread-safe since it runs on the UI thread
+                buzzersEnabled = false;
+                startDisableOthersThread(clientID);
+            }
             makeText(msg);
         }
     }
