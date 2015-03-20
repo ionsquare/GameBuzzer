@@ -167,6 +167,7 @@ public class FindHostFragment extends Fragment {
         } catch (IOException ex) {
             Log.i(TAG, "Oops" + ex.getMessage());
             makeText("There was an error, go back and try again");
+            ex.printStackTrace();
         }
 
 

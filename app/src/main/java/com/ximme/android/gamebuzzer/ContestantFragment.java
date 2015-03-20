@@ -31,7 +31,7 @@ public class ContestantFragment extends Fragment {
     public static final String ARG_HOST_ADDRESS = "hostAddress";
 
     // Network
-    private String SERVER_IP;
+    private String server_ip;
     private Socket socket;
     private Thread listenerThread;
     Handler mHandler;
@@ -54,10 +54,11 @@ public class ContestantFragment extends Fragment {
         super.onCreate(savedInstanceState);
 
         Bundle args = getArguments();
-        SERVER_IP = args.getString(ARG_HOST_ADDRESS);
+        server_ip = args.getString(ARG_HOST_ADDRESS);
 
-        Log.d(TAG, "SERVER_IP: " + SERVER_IP);
+        Log.d(TAG, "server_ip: " + server_ip);
 
+        mHandler = new Handler();
         new Thread(new ClientThread()).start();
 
     }
@@ -75,19 +76,21 @@ public class ContestantFragment extends Fragment {
                 // This executes when the Host button is clicked
                 // TODO implement this - send buzz message to host
 
-                try{
-                    PrintWriter out = new PrintWriter(new BufferedWriter(
-                            new OutputStreamWriter(socket.getOutputStream())),
-                            true);
-                    out.println("Buzz!");
-                } catch (UnknownHostException e) {
-                    e.printStackTrace();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-
+                new Thread(new Runnable() {
+                    public void run() {
+                        PrintWriter out = null;
+                        try {
+                            out = new PrintWriter(new BufferedWriter(
+                                    new OutputStreamWriter(socket.getOutputStream())),
+                                    true);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        Log.d(TAG, "Sending Buzz message");
+                        out.println("Buzz!");
+                        Log.d(TAG, "Buzz message sent");
+                    }
+                }).start();
 
             }
         });
@@ -95,28 +98,22 @@ public class ContestantFragment extends Fragment {
         return v;
     }
 
-    private void makeText(final String text){
-        getActivity().runOnUiThread(new Runnable() {
-            public void run() {
-                Toast.makeText(getActivity(), text, Toast.LENGTH_SHORT).show();
-            }
-        });
-    }
-
     class ClientThread implements Runnable {
 
         @Override
         public void run() {
-
+            Log.d(TAG, "ClientThread running");
             try {
-                InetAddress hostAddress = InetAddress.getByName(SERVER_IP);
+                InetAddress hostAddress = InetAddress.getByName(server_ip);
 
                 socket = new Socket(hostAddress, MainActivity.SERVERPORT);
+                Log.d(TAG, "Socket opened");
 
                 // Socket intialized, start listener thread
                 // This will listen for buzzer block instruction
                 listenerThread = new Thread(new ListenerThread(socket));
                 listenerThread.start();
+                Log.d(TAG, "Listener Thread started");
 
             } catch (UnknownHostException e1) {
                 e1.printStackTrace();
@@ -145,7 +142,14 @@ public class ContestantFragment extends Fragment {
         public void run() {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
+                    Log.d(TAG, "ListenerThread waiting for message on socket...");
                     String read = input.readLine();
+                    if(read == null){
+                        // Connection was terminated, exit the loop
+                        break;
+                    }
+                    Log.d(TAG, "ListenerThread received message");
+
                     mHandler.post(new updateUIThread(read));
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -165,9 +169,24 @@ public class ContestantFragment extends Fragment {
         public void run() {
             // text.setText(text.getText().toString()+"Client Says: "+ msg + "\n");
             makeText(msg);
-            // TODO disable buzzer
+            if(msg == "disable"){
+                // TODO disable buzzer
+
+            }else if(msg == "enable"){
+                // TODO enable buzzer
+
+            }else{
+                makeText(msg);
+                // makeText("Unrecognized action");
+            }
         }
     }
 
-
+    private void makeText(final String text){
+        getActivity().runOnUiThread(new Runnable() {
+            public void run() {
+                Toast.makeText(getActivity(), text, Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
 }

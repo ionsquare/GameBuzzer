@@ -21,7 +21,6 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 
 /**
@@ -43,8 +42,7 @@ public class HostFragment extends Fragment {
     Thread serverThread = null;
     private boolean fragmentIsActive = false;
     private static final int BROADCASTINTERVAL = 10000;     // Milliseconds
-    private ArrayList<Socket> socketList = new ArrayList<>();
-    private ArrayList<CommunicationThread> communicationThreadList= new ArrayList<>();
+    private ArrayList<ClientConnection> clientConnectionList = new ArrayList<>();
 
     public HostFragment(){
         // Empty Constructor, not necessary for anything but seems to be convention
@@ -60,8 +58,6 @@ public class HostFragment extends Fragment {
         Log.d(TAG, "Device IP: " + ((MainActivity)getActivity()).thisDeviceIP);
 
         updateConversationHandler = new Handler();
-        serverThread = new Thread(new ServerThread());
-        this.serverThread.start();
     }
 
     @Override
@@ -90,6 +86,8 @@ public class HostFragment extends Fragment {
 
         // Start broadcasting as host
         fragmentIsActive = true;
+        serverThread = new Thread(new ServerThread());
+        this.serverThread.start();
         startBroadcastThread();
     }
 
@@ -150,14 +148,6 @@ public class HostFragment extends Fragment {
 
     }
 
-    private void makeText(final String text){
-        getActivity().runOnUiThread(new Runnable() {
-            public void run() {
-                Toast.makeText(getActivity(), text, Toast.LENGTH_SHORT).show();
-            }
-        });
-    }
-
     public void startEnableBuzzersThread(){
         new Thread(new EnableBuzzersThread()).start();
     }
@@ -166,23 +156,61 @@ public class HostFragment extends Fragment {
         @Override
         public void run(){
             Log.d(TAG, "Enable buzzers");
+            Log.d(TAG, "client list size: ");
 
-            PrintWriter out;
-            for(Socket socket : socketList){
+            for(ClientConnection client: clientConnectionList){
                 Log.d(TAG, "Attempting to enable a buzzer");
-                try {
-                    out = new PrintWriter(new BufferedWriter(
-                            new OutputStreamWriter(socket.getOutputStream())),
-                            true);
-                    out.println("Enable Buzzer");
-                } catch (UnknownHostException e) {
-                    e.printStackTrace();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                client.changeBuzzerState(true);
             }
+        }
+    }
+
+    public class ClientConnection {
+        private Thread listenerThread;
+        private Socket socket;
+        private PrintWriter out;
+
+        public ClientConnection(Socket socket){
+            Log.d(TAG, "ClientConnection() constructor");
+            this.socket = socket;
+            CommunicationThread commThread = new CommunicationThread((this.socket));
+            listenerThread = new Thread(commThread);
+            listenerThread.start();
+            Log.d(TAG, "ClientConnection() listenerThread started");
+
+            try {
+                out = new PrintWriter(new BufferedWriter(
+                        new OutputStreamWriter(socket.getOutputStream())),
+                        true);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        public void changeBuzzerState(final boolean enabled){
+            new Thread(new Runnable() {
+                public void run() {
+                    if(enabled == true){
+                        Log.d(TAG, "changeBuzzerState(): Enable");
+                        out.println("Enable Buzzer");
+                    }else{
+                        Log.d(TAG, "changeBuzzerState(): Disable");
+                        out.println("Disable Buzzer");
+                    }
+
+                }
+            }).start();
+        }
+
+        public boolean destroy(){
+            listenerThread.interrupt();
+            try {
+                socket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+                return false;
+            }
+            return true;
         }
     }
 
@@ -197,14 +225,18 @@ public class HostFragment extends Fragment {
             }
             while (fragmentIsActive && !Thread.currentThread().isInterrupted()) {
                 try {
+                    Log.d(TAG, "Listening for socket connection");
                     socket = serverSocket.accept();
-                    socketList.add(socket);
-                    CommunicationThread commThread = new CommunicationThread(socket);
-                    new Thread(commThread).start();
+                    Log.d(TAG, "Accepted socket");
+                    ClientConnection newClient = new ClientConnection(socket);
+                    clientConnectionList.add(newClient);
+                    //CommunicationThread commThread = new CommunicationThread(socket);
+                    //new Thread(commThread).start();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
+            Log.d(TAG, "Server thread stopped");
         }
     }
 
@@ -226,12 +258,18 @@ public class HostFragment extends Fragment {
         public void run() {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
+                    Log.d(TAG, "CommunicationThread() running, listening on socket");
                     String read = input.readLine();
+                    if(read == null){
+                        // Connection was terminated, exit the loop
+                        break;
+                    }
                     updateConversationHandler.post(new updateUIThread(read));
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
+            Log.d(TAG, "CommunicationThread() interrupted, exiting");
         }
     }
 
@@ -247,5 +285,13 @@ public class HostFragment extends Fragment {
             // text.setText(text.getText().toString()+"Client Says: "+ msg + "\n");
             makeText(msg);
         }
+    }
+
+    private void makeText(final String text){
+        getActivity().runOnUiThread(new Runnable() {
+            public void run() {
+                Toast.makeText(getActivity(), text, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 }
