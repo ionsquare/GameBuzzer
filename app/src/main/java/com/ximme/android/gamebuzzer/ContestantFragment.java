@@ -86,6 +86,19 @@ public class ContestantFragment extends Fragment {
         return v;
     }
 
+    private void playBuzzSound(){
+        player = MediaPlayer.create(getActivity(), R.raw.buzzer);
+        player.setAudioStreamType(AudioManager.STREAM_MUSIC);
+
+        player.start();
+        player.setOnCompletionListener(new MediaPlayer.OnCompletionListener(){
+            @Override
+            public void onCompletion(MediaPlayer player){
+                player.release();
+            }
+        });
+    }
+
     private void sendBuzzMsg(){
         new Thread(new Runnable() {
             public void run() {
@@ -178,16 +191,7 @@ public class ContestantFragment extends Fragment {
             }else if(msg.equals(MainActivity.MSG_ENABLE)){
                 mBuzz.setEnabled(true);
             }else if(msg.equals(MainActivity.MSG_BUZZ_WIN)){
-                player = MediaPlayer.create(getActivity(), R.raw.buzzer);
-                player.setAudioStreamType(AudioManager.STREAM_MUSIC);
-
-                player.start();
-                player.setOnCompletionListener(new MediaPlayer.OnCompletionListener(){
-                    @Override
-                    public void onCompletion(MediaPlayer player){
-                        player.release();
-                    }
-                });
+                playBuzzSound();
             }else{
                 makeText("Unrecognized action: " + msg);
             }
