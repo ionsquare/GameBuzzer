@@ -11,6 +11,7 @@
     <TextView
         android:id="@+id/heading"
         android:text="@string/contestant_heading"
+        android:keepScreenOn="true"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textSize="50sp"
@@ -23,6 +24,7 @@
         android:layout_below="@id/heading"
         android:layout_centerInParent="true"
         android:layout_marginTop="50dp"
+        android:enabled="false"
         android:text="@string/contestant_buzz"
         android:textSize="60sp"/>
 
