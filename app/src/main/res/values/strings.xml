@@ -5,7 +5,7 @@
     <string name="hello_world">Hello world!</string>
     <string name="action_settings">Settings</string>
 
-    <!-- Host Fragment Strings -->
+    <!-- Main Fragment Strings -->
     <string name="main_heading">Choose Role</string>
     <string name="role_host">Host</string>
     <string name="role_contestant">Contestant</string>
@@ -14,13 +14,16 @@
     <string name="host_heading">Host</string>
     <string name="host_enable_buzzers">Enable Buzzers</string>
 
-    <!-- Host Fragment Strings -->
+    <!-- Contestant Fragment Strings -->
     <string name="contestant_heading">Contestant</string>
     <string name="contestant_buzz">Buzz!</string>
 
     <!-- Common Strings -->
-    <string name="player_list_label">Players joined:</string>
+    <string name="player_list_label">Players:</string>
     <string name="find_host_heading">Find Host</string>
     <string name="searching_hosts">Searching for Hosts...</string>
+    <string name="status_label">Status:</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_not_connected">Not Connected</string>
 
 </resources>

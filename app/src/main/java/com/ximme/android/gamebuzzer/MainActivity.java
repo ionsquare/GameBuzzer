@@ -16,6 +16,8 @@ public class MainActivity extends ActionBarActivity {
     public static final String MSG_BUZZ_REQUEST = "buzz?";
     public static final String MSG_BUZZ_WIN = "buzz!";
 
+    public static final String ACTION_CONN_LOST = "lost connection";
+
     public String broadcastIP;
     public String thisDeviceIP;
 

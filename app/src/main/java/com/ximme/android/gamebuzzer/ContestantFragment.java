@@ -10,6 +10,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
@@ -42,6 +43,7 @@ public class ContestantFragment extends Fragment {
     // Layout elements
     private Button mBuzz;
     private MediaPlayer player;
+    private TextView mStatus;
 
     public static ContestantFragment newInstance(String hostAddress) {
         ContestantFragment f = new ContestantFragment();
@@ -83,7 +85,20 @@ public class ContestantFragment extends Fragment {
             }
         });
 
+        mStatus = (TextView) v.findViewById(R.id.status);
+
         return v;
+    }
+
+    @Override
+    public  void onResume(){
+        super.onResume();
+
+    }
+
+    public void onPause(){
+        super.onPause();
+
     }
 
     private void playBuzzSound(){
@@ -128,7 +143,7 @@ public class ContestantFragment extends Fragment {
                 socket = new Socket(hostAddress, MainActivity.SERVERPORT);
                 Log.d(TAG, "Socket opened");
 
-                // Socket intialized, start listener thread
+                // Socket initialized, start listener thread
                 // This will listen for buzzer block instruction
                 listenerThread = new Thread(new ListenerThread(socket));
                 listenerThread.start();
@@ -144,6 +159,9 @@ public class ContestantFragment extends Fragment {
 
     }
 
+    /**
+     * Listens for messages from Host
+     */
     class ListenerThread implements Runnable {
         private Socket socket;
         private BufferedReader input;
@@ -165,6 +183,8 @@ public class ContestantFragment extends Fragment {
                     String read = input.readLine();
                     if(read == null){
                         // Connection was terminated, exit the loop
+                        Log.w(TAG, "Listener thread lost connection (read == null)");
+                        mHandler.post(new updateUIThread(MainActivity.ACTION_CONN_LOST));
                         break;
                     }
                     Log.d(TAG, "ListenerThread received message");
@@ -192,6 +212,8 @@ public class ContestantFragment extends Fragment {
                 mBuzz.setEnabled(true);
             }else if(msg.equals(MainActivity.MSG_BUZZ_WIN)){
                 playBuzzSound();
+            }else if(msg.equals(MainActivity.ACTION_CONN_LOST)){
+
             }else{
                 makeText("Unrecognized action: " + msg);
             }
