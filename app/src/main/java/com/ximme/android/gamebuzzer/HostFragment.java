@@ -8,6 +8,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
@@ -79,7 +80,6 @@ public class HostFragment extends Fragment {
             startEnableBuzzersThread();
             }
         });
-
         return v;
     }
 
@@ -173,6 +173,12 @@ public class HostFragment extends Fragment {
         new Thread(new DisableOthersThread(callingClientID)).start();
     }
 
+    public void updatePlayers(){
+        getActivity().setContentView(R.layout.fragment_host);
+        TextView tv = new TextView(getActivity());
+        tv = (TextView) getActivity().findViewById(R.id.players);
+        tv.setText(""+clientConnectionList.size());
+    }
     public class DisableOthersThread implements Runnable {
         int callingClientID;
 
@@ -270,6 +276,8 @@ public class HostFragment extends Fragment {
                     Log.d(TAG, "Accepted socket");
                     ClientConnection newClient = new ClientConnection(nextClientID++, socket);
                     clientConnectionList.add(newClient);
+                    updateConversationHandler.post(new updatePlayersThread());
+
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -330,6 +338,16 @@ public class HostFragment extends Fragment {
                 startDisableOthersThread(clientID);
             }
             makeText(msg);
+        }
+    }
+
+    class updatePlayersThread implements Runnable{
+        public updatePlayersThread(){
+
+        }
+        @Override
+        public void run(){
+            updatePlayers();
         }
     }
 
