@@ -8,8 +8,10 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ToggleButton;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -36,13 +38,15 @@ public class HostFragment extends Fragment {
 
     // Layout elements
     private Button mEnableBuzzers;
+    private ToggleButton mDiscovery;
 
     // Network
     private ServerSocket serverSocket;
     Handler updateConversationHandler;
     Thread serverThread = null;
+    Thread broadcastThread = null;
     private boolean fragmentIsActive = false;
-    private static final int BROADCASTINTERVAL = 10000;     // Milliseconds
+    private static final int BROADCASTINTERVAL = 1000;     // Milliseconds
     private ArrayList<ClientConnection> clientConnectionList = new ArrayList<>();
     private int nextClientID = 0;
 
@@ -80,6 +84,17 @@ public class HostFragment extends Fragment {
             startEnableBuzzersThread();
             }
         });
+
+        mDiscovery = (ToggleButton) v.findViewById(R.id.discovery);
+        mDiscovery.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if(isChecked){
+
+                }
+            }
+        });
+
         return v;
     }
 
@@ -99,7 +114,7 @@ public class HostFragment extends Fragment {
         super.onPause();
         // TODO close all existing sockets
 
-        fragmentIsActive = false;
+        stopBroadcastThrad();
     }
 
     @Override
@@ -114,18 +129,23 @@ public class HostFragment extends Fragment {
     }
 
     private void startBroadcastThread(){
-        new Thread(new Runnable() {
+        broadcastThread = new Thread(new Runnable() {
             public void run() {
-                while(fragmentIsActive) {
+                while(true) {
                     try {
-                        sendUDPMessage("GameBuzzer Host here");
+                        sendUDPMessage(MainActivity.MSG_HOST_HERE);
                         Thread.sleep(BROADCASTINTERVAL);
-                    }catch(InterruptedException e){
+                    } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
                 }
             }
-        }).start();
+        });
+        broadcastThread.start();
+    }
+
+    private void stopBroadcastThrad(){
+        broadcastThread.interrupt();
     }
 
     private void sendUDPMessage(String msg) {
@@ -169,16 +189,17 @@ public class HostFragment extends Fragment {
         }
     }
 
-    public void startDisableOthersThread(int callingClientID){
-        new Thread(new DisableOthersThread(callingClientID)).start();
-    }
-
     public void updatePlayers(){
         getActivity().setContentView(R.layout.fragment_host);
         TextView tv = new TextView(getActivity());
         tv = (TextView) getActivity().findViewById(R.id.players);
-        tv.setText(""+clientConnectionList.size());
+        tv.setText("" + clientConnectionList.size());
     }
+
+    public void startDisableOthersThread(int callingClientID){
+        new Thread(new DisableOthersThread(callingClientID)).start();
+    }
+
     public class DisableOthersThread implements Runnable {
         int callingClientID;
 
@@ -342,9 +363,6 @@ public class HostFragment extends Fragment {
     }
 
     class updatePlayersThread implements Runnable{
-        public updatePlayersThread(){
-
-        }
         @Override
         public void run(){
             updatePlayers();

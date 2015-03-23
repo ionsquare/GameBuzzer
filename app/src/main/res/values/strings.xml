@@ -3,7 +3,6 @@
 
     <string name="app_name">GameBuzzer</string>
     <string name="hello_world">Hello world!</string>
-    <string name="action_settings">Settings</string>
 
     <!-- Main Fragment Strings -->
     <string name="main_heading">Choose Role</string>
@@ -13,6 +12,7 @@
     <!-- Host Fragment Strings -->
     <string name="host_heading">Host</string>
     <string name="host_enable_buzzers">Enable Buzzers</string>
+    <string name="discovery_label">Contestant discovery</string>
 
     <!-- Contestant Fragment Strings -->
     <string name="contestant_heading">Contestant</string>
@@ -25,5 +25,8 @@
     <string name="status_label">Status:</string>
     <string name="status_connected">Connected</string>
     <string name="status_not_connected">Not Connected</string>
+
+    <!-- Menu Strings-->
+    <string name="action_invite">Invite users</string>
 
 </resources>

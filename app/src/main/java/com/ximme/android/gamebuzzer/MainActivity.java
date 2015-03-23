@@ -3,6 +3,7 @@ package com.ximme.android.gamebuzzer;
 import android.os.Bundle;
 import android.support.v4.app.FragmentManager;
 import android.support.v7.app.ActionBarActivity;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 
@@ -15,6 +16,7 @@ public class MainActivity extends ActionBarActivity {
     public static final String MSG_DISABLE = "disable";
     public static final String MSG_BUZZ_REQUEST = "buzz?";
     public static final String MSG_BUZZ_WIN = "buzz!";
+    public static final String MSG_HOST_HERE = "GameBuzzer Host here";
 
     public static final String ACTION_CONN_LOST = "lost connection";
 
@@ -42,26 +44,29 @@ public class MainActivity extends ActionBarActivity {
 
 
     @Override
-              public boolean onCreateOptionsMenu(Menu menu) {
-                  // Inflate the menu; this adds items to the action bar if it is present.
-                  getMenuInflater().inflate(R.menu.menu_main, menu);
-                  return true;
-              }
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.menu_main, menu);
+        return true;
+    }
 
     @Override
-              public boolean onOptionsItemSelected(MenuItem item) {
-                  // Handle action bar item clicks here. The action bar will
-                  // automatically handle clicks on the Home/Up button, so long
-                  // as you specify a parent activity in AndroidManifest.xml.
-                  int id = item.getItemId();
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        int id = item.getItemId();
 
-                  //noinspection SimplifiableIfStatement
-                  if (id == R.id.action_settings) {
-                      return true;
-                  }
+        switch(id){
+            case R.id.action_invite:
+                break;
 
-                  return super.onOptionsItemSelected(item);
-              }
+            default:
+                Log.d(TAG, "Unrecognized option");
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
 
     public void onHostRoleSelected(){
         HostFragment hostFragment = new HostFragment();
@@ -93,4 +98,5 @@ public class MainActivity extends ActionBarActivity {
                 .addToBackStack(null)
                 .commit();
     }
+
 }

@@ -98,6 +98,7 @@ public class ContestantFragment extends Fragment {
 
     public void onPause(){
         super.onPause();
+        // TODO Close socket!!
 
     }
 

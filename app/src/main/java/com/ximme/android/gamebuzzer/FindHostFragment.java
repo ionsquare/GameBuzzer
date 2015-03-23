@@ -136,12 +136,13 @@ public class FindHostFragment extends Fragment {
     private void receiveBroadcast(){
         try {
             //Keep a socket open to listen to all the UDP traffic that is destined for this port
-            InetAddress broadcastAddress = Utils.getBroadcastAddress(getActivity());
+            // InetAddress broadcastAddress = Utils.getBroadcastAddress(getActivity());
+            InetAddress broadcastAddress = InetAddress.getByName("127.0.0.1");
             Log.d(TAG, "broadcastAddress: " + broadcastAddress.getHostAddress());
 
             DatagramSocket socket = new DatagramSocket(MainActivity.SERVERPORT,
                     broadcastAddress);
-            socket.setBroadcast(true);
+//            socket.setBroadcast(true);
 
             Log.i(TAG, "Ready to receive broadcast packets!");
 
