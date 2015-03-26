@@ -2,6 +2,7 @@ package com.ximme.android.gamebuzzer;
 
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Message;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -13,18 +14,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.util.ArrayList;
+import java.util.Set;
 
 /**
  * TODO List of things that need to be done
@@ -33,7 +23,7 @@ import java.util.ArrayList;
  * When a buzzer is detected, disable all buzzers; notify successful contestant and tell it to buzz
  */
 
-public class HostFragment extends Fragment {
+public class HostFragment extends Fragment implements Handler.Callback {
     private static final String TAG = HostFragment.class.getSimpleName();
 
     // Layout elements
@@ -41,14 +31,9 @@ public class HostFragment extends Fragment {
     private ToggleButton mDiscovery;
 
     // Network
-    private ServerSocket serverSocket;
-    Handler updateConversationHandler;
-    Thread serverThread = null;
-    Thread broadcastThread = null;
-    private boolean fragmentIsActive = false;
-    private static final int BROADCASTINTERVAL = 1000;     // Milliseconds
-    private ArrayList<ClientConnection> clientConnectionList = new ArrayList<>();
-    private int nextClientID = 0;
+    Handler mHandler;
+    GameServer mGameServer;
+    Thread mBroadcastThread = null;
 
     private boolean buzzersEnabled = false;
 
@@ -65,7 +50,8 @@ public class HostFragment extends Fragment {
         Log.d(TAG, "Broadcast IP: " + ((MainActivity)getActivity()).broadcastIP);
         Log.d(TAG, "Device IP: " + ((MainActivity) getActivity()).thisDeviceIP);
 
-        updateConversationHandler = new Handler();
+        mHandler = new Handler(this);
+        mGameServer = new GameServer(MainActivity.SERVER_PORT, mHandler);
     }
 
     @Override
@@ -79,9 +65,9 @@ public class HostFragment extends Fragment {
         mEnableBuzzers.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-            // This executes when the Enable Buzzers button is clicked
-            // TODO Send message to contestants to enable buzzers
-            startEnableBuzzersThread();
+                // This executes when the Enable Buzzers button is clicked
+                // TODO Send message to contestants to enable buzzers
+                enableBuzzers();
             }
         });
 
@@ -102,244 +88,71 @@ public class HostFragment extends Fragment {
     public void onResume(){
         super.onResume();
 
-        // Start broadcasting as host
-        fragmentIsActive = true;
-        serverThread = new Thread(new ServerThread());
-        this.serverThread.start();
-        startBroadcastThread();
+        // Start the server
+        mGameServer.startServer();
+        mGameServer.startBroadcast();
     }
 
     @Override
     public void onPause(){
         super.onPause();
-        // TODO close all existing sockets
 
-        stopBroadcastThrad();
+        // Stop the server and broadcast
+        mGameServer.stopBroadcast();
+        mGameServer.stopServer();
     }
 
-    @Override
-    public void onStop(){
-        super.onStop();
-
-        try{
-            serverSocket.close();
-        }catch (IOException e){
-            e.printStackTrace();
+    private void enableBuzzers(){
+        buzzersEnabled = true;
+        Set<Integer> clientIDList = mGameServer.getClientIDList();
+        for(int clientID : clientIDList){
+            mGameServer.sendMessage(clientID, MainActivity.MSG_ENABLE);
         }
     }
 
-    private void startBroadcastThread(){
-        broadcastThread = new Thread(new Runnable() {
-            public void run() {
-                while(true) {
-                    try {
-                        sendUDPMessage(MainActivity.MSG_HOST_HERE);
-                        Thread.sleep(BROADCASTINTERVAL);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        });
-        broadcastThread.start();
-    }
-
-    private void stopBroadcastThrad(){
-        broadcastThread.interrupt();
-    }
-
-    private void sendUDPMessage(String msg) {
-        Log.d(TAG, "sendUDPMessage()");
-
-        try {
-            DatagramSocket clientSocket = new DatagramSocket();
-
-            clientSocket.setBroadcast(true);
-            InetAddress address = Utils.getBroadcastAddress(getActivity());
-
-            byte[] sendData;
-
-            sendData = msg.getBytes();
-            DatagramPacket sendPacket = new DatagramPacket(sendData,
-                    sendData.length, address, MainActivity.SERVERPORT);
-            clientSocket.send(sendPacket);
-
-            clientSocket.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-    }
-
-    public void startEnableBuzzersThread(){
-        new Thread(new EnableBuzzersThread()).start();
-    }
-
-    public class EnableBuzzersThread implements Runnable {
-        @Override
-        public void run(){
-            Log.d(TAG, "Enable buzzers");
-            Log.d(TAG, "client list size: ");
-
-            buzzersEnabled = true;
-            for(ClientConnection client: clientConnectionList){
-                Log.d(TAG, "Attempting to enable a buzzer");
-                client.changeBuzzerState(true);
+    private void disableBuzzers(int exceptThisClient){
+        buzzersEnabled = false;
+        Set<Integer> clientIDList = mGameServer.getClientIDList();
+        for(int clientID : clientIDList){
+            if(clientID == exceptThisClient) {
+                mGameServer.sendMessage(clientID, MainActivity.MSG_BUZZ_WIN);
+            }else{
+                mGameServer.sendMessage(clientID, MainActivity.MSG_DISABLE);
             }
         }
     }
 
-    public void updatePlayers(){
+    private void updatePlayers(){
         getActivity().setContentView(R.layout.fragment_host);
         TextView tv = new TextView(getActivity());
         tv = (TextView) getActivity().findViewById(R.id.players);
-        tv.setText("" + clientConnectionList.size());
+        tv.setText(mGameServer.getClientIDList().size());
     }
 
-    public void startDisableOthersThread(int callingClientID){
-        new Thread(new DisableOthersThread(callingClientID)).start();
-    }
-
-    public class DisableOthersThread implements Runnable {
-        int callingClientID;
-
-        DisableOthersThread(int callingClientID){
-            this.callingClientID = callingClientID;
-        }
-
-        @Override
-        public void run() {
-            for(ClientConnection client: clientConnectionList){
-                if(client.clientID != callingClientID) {
-                    client.changeBuzzerState(false);
-                }else{
-                    client.sendBuzzWin();
-                }
-            }
-        }
-    }
-
-    public class ClientConnection {
-        private Thread listenerThread;
-        private Socket socket;
-        private PrintWriter out;
-        public int clientID;
-
-        public ClientConnection(int id, Socket socket){
-            Log.d(TAG, "ClientConnection() constructor");
-
-            clientID = id;
-            this.socket = socket;
-
-            CommunicationThread commThread = new CommunicationThread(clientID, this.socket);
-            listenerThread = new Thread(commThread);
-            listenerThread.start();
-            Log.d(TAG, "ClientConnection() listenerThread started");
-
-            try {
-                out = new PrintWriter(new BufferedWriter(
-                        new OutputStreamWriter(socket.getOutputStream())),
-                        true);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        public void changeBuzzerState(final boolean enabled){
-            new Thread(new Runnable() {
-                public void run() {
-                    if(enabled == true){
-                        Log.d(TAG, "changeBuzzerState(): Enable");
-                        out.println(MainActivity.MSG_ENABLE);
-                    }else{
-                        Log.d(TAG, "changeBuzzerState(): Disable");
-                        out.println(MainActivity.MSG_DISABLE);
-                    }
-
-                }
-            }).start();
-        }
-
-        public void sendBuzzWin(){
-            new Thread(new Runnable() {
-                public void run() {
-                    Log.d(TAG, "Sending buzz win notification");
-                    out.println(MainActivity.MSG_BUZZ_WIN);
-                }
-            }).start();
-        }
-
-        public boolean destroy(){
-            listenerThread.interrupt();
-            try {
-                socket.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-                return false;
-            }
-            return true;
-        }
-    }
-
-    public class ServerThread implements Runnable {
-        @Override
-        public void run() {
-            Socket socket = null;
-            try {
-                serverSocket = new ServerSocket(MainActivity.SERVERPORT);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            while (fragmentIsActive && !Thread.currentThread().isInterrupted()) {
-                try {
-                    Log.d(TAG, "Listening for socket connection");
-                    socket = serverSocket.accept();
-                    Log.d(TAG, "Accepted socket");
-                    ClientConnection newClient = new ClientConnection(nextClientID++, socket);
-                    clientConnectionList.add(newClient);
-                    updateConversationHandler.post(new updatePlayersThread());
-
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-            Log.d(TAG, "Server thread stopped");
-        }
-    }
-
-    class CommunicationThread implements Runnable {
-        private int clientID;
-        private Socket clientSocket;
-        private BufferedReader input;
-
-        public CommunicationThread(int clientID, Socket clientSocket) {
-            this.clientID = clientID;
-            this.clientSocket = clientSocket;
-
-            try {
-                this.input = new BufferedReader(new InputStreamReader(this.clientSocket.getInputStream()));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        @Override
-        public void run() {
-            while (!Thread.currentThread().isInterrupted()) {
-                try {
-                    Log.d(TAG, "CommunicationThread() running, listening on socket");
-                    String read = input.readLine();
-                    if(read == null){
-                        // Connection was terminated, exit the loop
+    @Override
+    public boolean handleMessage(Message msg) {
+        Bundle data = msg.getData();
+        String action = data.getString(GameServer.EVENT_TYPE);
+        switch(action){
+            case GameServer.EVENT_CLIENT_CONNECT:
+                break;
+            case GameServer.EVENT_CLIENT_DISCONNECT:
+                break;
+            case GameServer.EVENT_MESSAGE_RECEIVED:
+                String clientMessage = data.getString(GameServer.ARG_MESSAGE);
+                switch(clientMessage){
+                    case MainActivity.MSG_BUZZ_REQUEST:
                         break;
-                    }
-                    updateConversationHandler.post(new updateUIThread(clientID, read));
-                } catch (IOException e) {
-                    e.printStackTrace();
+                    default:
+                        Log.d(TAG, "Unrecognized message: " + msg);
+                        break;
                 }
-            }
-            Log.d(TAG, "CommunicationThread() interrupted, exiting");
+                break;
+            default:
+                Log.d(TAG, "Unrecognized action: " + action);
+                break;
         }
+        return false;
     }
 
     class updateUIThread implements Runnable {
@@ -355,8 +168,7 @@ public class HostFragment extends Fragment {
         public void run() {
             if(msg.equals(MainActivity.MSG_BUZZ_REQUEST) && buzzersEnabled){
                 // This should be thread-safe since it runs on the UI thread
-                buzzersEnabled = false;
-                startDisableOthersThread(clientID);
+                disableBuzzers(clientID);
             }
             makeText(msg);
         }

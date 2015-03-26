@@ -11,7 +11,7 @@ import android.view.MenuItem;
 public class MainActivity extends ActionBarActivity {
     private static String TAG = MainActivity.class.getSimpleName();
 
-    public static final int SERVERPORT = 2769;
+    public static final int SERVER_PORT = 2769;
     public static final String MSG_ENABLE = "enable";
     public static final String MSG_DISABLE = "disable";
     public static final String MSG_BUZZ_REQUEST = "buzz?";

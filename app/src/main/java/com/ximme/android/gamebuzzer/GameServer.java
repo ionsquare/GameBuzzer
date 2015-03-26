@@ -11,34 +11,42 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Created by matthew on 2015-03-23.
  */
-public class Server {
-    private static final String TAG = Server.class.getSimpleName();
+public class GameServer {
+    private static final String TAG = GameServer.class.getSimpleName();
 
-    private static final String EVENT_TYPE = "Server.event_type";
-    private static final String EVENT_CLIENT_CONNECT = "Server.event.client_connect";
-    private static final String EVENT_CLIENT_DISCONNECT = "Server.event.client_disconnect";
-    private static final String EVENT_MESSAGE_RECEIVED = "Server.event.message_received";
+    public static final String EVENT_TYPE = "Server.event_type";
+    public static final String EVENT_CLIENT_CONNECT = "Server.event.client_connect";
+    public static final String EVENT_CLIENT_DISCONNECT = "Server.event.client_disconnect";
+    public static final String EVENT_MESSAGE_RECEIVED = "Server.event.message_received";
 
-    private static final String ARG_CLIENT_ID = "Server.arg.client_id";
-    private static final String ARG_MESSAGE = "Server.arg.message";
+    public static final String ARG_CLIENT_ID = "Server.arg.client_id";
+    public static final String ARG_MESSAGE = "Server.arg.message";
+
+    private static final int BROADCAST_INTERVAL = 1000;     // Milliseconds
 
     private int server_port;
     private Handler mHandler;
 
-    private Thread serverThread;
+    private Thread broadcastThread = null;
+    private Thread serverThread = null;
     //private Runnable newConnectionRunnable = null;
     private ServerSocket serverSocket = null;
     private int nextClientID = 0;
-    private ArrayList<ClientConnection> clientConnectionList = new ArrayList<>();
+    private HashMap<Integer, ClientConnection> clientConnectionList = new HashMap<>();
 
-    public Server(int server_port, Handler handler){
+    public GameServer(int server_port, Handler handler) {
         this.server_port = server_port;
         mHandler = handler;
     }
@@ -49,7 +57,7 @@ public class Server {
     }
     //*/
 
-    public void startServer(){
+    public void startServer() {
         serverThread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -58,7 +66,7 @@ public class Server {
                 Message msg;
 
                 try {
-                    serverSocket = new ServerSocket(MainActivity.SERVERPORT);
+                    serverSocket = new ServerSocket(server_port);
                 } catch (IOException e) {
                     e.printStackTrace();
                     return;
@@ -69,7 +77,7 @@ public class Server {
                         socket = serverSocket.accept();
                         Log.d(TAG, "Accepted socket");
                         ClientConnection newClient = new ClientConnection(nextClientID++, socket);
-                        clientConnectionList.add(newClient);
+                        clientConnectionList.put(newClient.clientID, newClient);
 
                         data = new Bundle();
                         data.putInt(ARG_CLIENT_ID, newClient.clientID);
@@ -94,7 +102,7 @@ public class Server {
         serverThread.start();
     }
 
-    public void stopServer(){
+    public void stopServer() {
         // Close the server socket
         try {
             serverSocket.close();
@@ -109,16 +117,76 @@ public class Server {
         //Log.d(TAG, "Server thread stopped");
 
         // Close all client connections
-        for(ClientConnection client: clientConnectionList){
+        for (Map.Entry<Integer, ClientConnection> client : clientConnectionList.entrySet()) {
             Log.d(TAG, "Attempting to enable a buzzer");
-            try {
-                client.socket.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            client.getValue().disconnect();
             // TODO Do I need to also interrupt the thread? Or will it complete automatically when the socket is closed?
             // client.listenerThread.interrupt();
         }
+    }
+
+    public void startBroadcast() {
+        broadcastThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while (!Thread.currentThread().isInterrupted()) {
+                    sendBroadcast(MainActivity.MSG_HOST_HERE);
+                    try {
+                        Thread.sleep(BROADCAST_INTERVAL);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                        Log.e(TAG, "startBroadcast() Couldn't sleep! Stopping thread");
+                        break;
+                    }
+                }
+                Log.d(TAG, "startBroadcast() finished, thread must have been interrupted");
+            }
+        });
+    }
+
+    public void stopBroadcast(){
+        Log.d(TAG, "stopBroadcast()");
+        if(broadcastThread != null) {
+            broadcastThread.interrupt();
+            broadcastThread = null;
+            Log.d(TAG, "stopBroadcast() finished");
+        }else {
+            Log.d(TAG, "stopBroadcast() broadcastThread was null");
+        }
+    }
+
+    public void sendMessage(final int clientID, final String msg) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                Log.d(TAG, "Sending message to client: " + clientID);
+                clientConnectionList.get(clientID).sendMessage(msg);
+            }
+        });
+    }
+
+    public Set<Integer> getClientIDList(){
+        return clientConnectionList.keySet();
+    }
+
+    private void sendBroadcast(String msg) {
+        try {
+            DatagramSocket broadcastSocket = new DatagramSocket();
+
+            broadcastSocket.setBroadcast(true);
+            InetAddress address = InetAddress.getByName(Utils.getBroadcastIP());
+
+            byte[] sendData;
+
+            sendData = msg.getBytes();
+            DatagramPacket packet = new DatagramPacket(sendData, sendData.length, address, server_port);
+            broadcastSocket.send(packet);
+
+            broadcastSocket.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
     }
 
     private class ClientConnection {
@@ -128,7 +196,7 @@ public class Server {
         private BufferedReader in;
         public int clientID;
 
-        public ClientConnection(int id, Socket socket){
+        public ClientConnection(int id, Socket socket) {
             Log.d(TAG, "ClientConnection() constructor");
 
             clientID = id;
@@ -141,7 +209,7 @@ public class Server {
             }
 
 
-            CommunicationThread commThread = new CommunicationThread(clientID, in);
+            SocketListenerThread commThread = new SocketListenerThread(clientID, in);
             listenerThread = new Thread(commThread);
             listenerThread.start();
             Log.d(TAG, "ClientConnection() listenerThread started");
@@ -155,7 +223,11 @@ public class Server {
             }
         }
 
-        public boolean destroy(){
+        public void sendMessage(String msg) {
+            out.println(msg);
+        }
+
+        public boolean disconnect() {
             try {
                 in.close();
             } catch (IOException e) {
@@ -173,12 +245,12 @@ public class Server {
         }
     }
 
-    class CommunicationThread implements Runnable {
+    class SocketListenerThread implements Runnable {
         private int clientID;
         private Socket clientSocket;
         private BufferedReader input;
 
-        public CommunicationThread(int clientID, BufferedReader reader) {
+        public SocketListenerThread(int clientID, BufferedReader reader) {
             this.clientID = clientID;
             this.input = reader;
         }
@@ -193,11 +265,11 @@ public class Server {
                     Log.d(TAG, "CommunicationThread.run(): listening on socket");
 
                     String read = input.readLine();
-                    if(read == null){
+                    if (read == null) {
                         // Connection was terminated, exit the loop
                         data = new Bundle();
                         data.putString(EVENT_TYPE, EVENT_CLIENT_DISCONNECT);
-                        data.putInt(Server.ARG_CLIENT_ID, clientID);
+                        data.putInt(GameServer.ARG_CLIENT_ID, clientID);
 
                         msg = new Message();
                         msg.setData(data);
@@ -207,8 +279,8 @@ public class Server {
 
                     data = new Bundle();
                     data.putString(EVENT_TYPE, EVENT_MESSAGE_RECEIVED);
-                    data.putInt(Server.ARG_CLIENT_ID, clientID);
-                    data.putString(Server.ARG_MESSAGE, read);
+                    data.putInt(GameServer.ARG_CLIENT_ID, clientID);
+                    data.putString(GameServer.ARG_MESSAGE, read);
 
                     msg = new Message();
                     msg.setData(data);
