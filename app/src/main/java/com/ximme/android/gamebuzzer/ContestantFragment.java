@@ -141,7 +141,7 @@ public class ContestantFragment extends Fragment {
             try {
                 InetAddress hostAddress = InetAddress.getByName(server_ip);
 
-                socket = new Socket(hostAddress, MainActivity.SERVERPORT);
+                socket = new Socket(hostAddress, MainActivity.SERVER_PORT);
                 Log.d(TAG, "Socket opened");
 
                 // Socket initialized, start listener thread

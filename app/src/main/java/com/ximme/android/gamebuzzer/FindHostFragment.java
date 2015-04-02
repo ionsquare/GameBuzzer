@@ -2,6 +2,7 @@ package com.ximme.android.gamebuzzer;
 
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Message;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -10,11 +11,6 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
 
 /**
  * TODO List of things that need to be done
@@ -25,9 +21,9 @@ public class FindHostFragment extends Fragment {
     private static final String TAG = FindHostFragment.class.getSimpleName();
 
     // Network
-    private Handler mHandler;
-    private InetAddress hostAddress = null;
-    private Thread listenerThread;
+    Handler mHandler;
+    GameServer mGameClient;
+    Thread listenerThread;
 
     // Layout elements
     private LinearLayout mFindHostList;
@@ -41,7 +37,8 @@ public class FindHostFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-
+        mHandler = new FindHostHandler();
+        mGameClient = new GameServer(mHandler);
     }
 
     @Override
@@ -110,20 +107,74 @@ public class FindHostFragment extends Fragment {
         super.onResume();
 
         // Listen for host broadcast
-        startListenerThread();
+        // startListenerThread();
+        startBroadcastListener();
     }
 
     @Override
     public void onPause(){
         super.onPause();
-        listenerThread.interrupt();
-        Log.d(TAG, "Thread Interrupted");
+        //listenerThread.interrupt();
+        //Log.d(TAG, "Thread Interrupted");
+        stopBroadcastListener();
+    }
+
+    private class FindHostHandler extends Handler{
+
+        @Override
+        public void handleMessage(Message msg) {
+            Log.d(TAG, "handleMessage()");
+            Bundle data = msg.getData();
+            String event_type = data.getString(GameServer.EVENT_TYPE);
+            Log.d(TAG, "handleMessage() Event type: " + event_type);
+
+            switch(event_type){
+                case GameServer.EVENT_RECEIVED_BROADCAST:
+                    Log.d(TAG, "handleMessage() broadcast event received");
+                    String hostAddress = data.getString(GameServer.ARG_CLIENT_ADDRESS);
+                    String message = data.getString(GameServer.ARG_MESSAGE);
+                    Log.d(TAG, "handleMessage(): message = " + message);
+                    if(message.equals(MainActivity.MSG_HOST_BROADCAST)){
+                        ((MainActivity) getActivity()).onJoinHost(hostAddress);
+                    }else{
+                        // TODO Remove this
+                        Log.d(TAG, "This shouldn't happen, I did something wrong");
+                    }
+
+                    break;
+                default:
+                    Log.e(TAG, "handleMessage() event type not recognized: " + event_type);
+                    break;
+            }
+        }
+    }
+
+
+    private void startBroadcastListener(){
+        Log.d(TAG, "startBroadcastListener()");
+        mGameClient.startBroadcastListener(MainActivity.SERVER_PORT);
+    }
+
+    private void stopBroadcastListener(){
+        Log.d(TAG, "stopBroadcastListener()");
+        mGameClient.stopBroadcastListener();
+    }
+
+    private void startBroadcast(){
+        // TODO Implement and use - host currently does not listen for client broadcasts
+        mGameClient.startBroadcast(MainActivity.MSG_CLIENT_BROADCAST, MainActivity.CLIENT_BROADCAST_PORT);
+    }
+
+    private void stopBroadcast(){
+        // TODO Implement and use - host currently does not listen for client broadcasts
+        mGameClient.stopBroadcast();
     }
 
     private void joinHost(){
 
     }
 
+    /*
     public void startListenerThread(){
         listenerThread = new Thread(new Runnable() {
             public void run() {
@@ -140,7 +191,7 @@ public class FindHostFragment extends Fragment {
             InetAddress broadcastAddress = InetAddress.getByName("127.0.0.1");
             Log.d(TAG, "broadcastAddress: " + broadcastAddress.getHostAddress());
 
-            DatagramSocket socket = new DatagramSocket(MainActivity.SERVERPORT,
+            DatagramSocket socket = new DatagramSocket(MainActivity.SERVER_PORT,
                     broadcastAddress);
 //            socket.setBroadcast(true);
 
@@ -176,6 +227,7 @@ public class FindHostFragment extends Fragment {
 
 
     }
+    //*/
 
     private void makeText(final String text){
         getActivity().runOnUiThread(new Runnable() {

@@ -12,11 +12,14 @@ public class MainActivity extends ActionBarActivity {
     private static String TAG = MainActivity.class.getSimpleName();
 
     public static final int SERVER_PORT = 2769;
+    public static final int CLIENT_BROADCAST_PORT = 2768;
+
     public static final String MSG_ENABLE = "enable";
     public static final String MSG_DISABLE = "disable";
     public static final String MSG_BUZZ_REQUEST = "buzz?";
     public static final String MSG_BUZZ_WIN = "buzz!";
-    public static final String MSG_HOST_HERE = "GameBuzzer Host here";
+    public static final String MSG_HOST_BROADCAST = "GameBuzzer Host here";
+    public static final String MSG_CLIENT_BROADCAST = "GameBuzzer Host here";
 
     public static final String ACTION_CONN_LOST = "lost connection";
 

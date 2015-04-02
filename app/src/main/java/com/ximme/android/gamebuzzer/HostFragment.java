@@ -34,10 +34,11 @@ public class HostFragment extends Fragment implements Handler.Callback {
     Handler mHandler;
     GameServer mGameServer;
     Thread mBroadcastThread = null;
+    boolean mDiscoveryOn = true;
 
     private boolean buzzersEnabled = false;
 
-    public HostFragment(){
+    public HostFragment() {
         // Empty Constructor, not necessary for anything but seems to be convention
         Log.d(TAG, "HostFragment() (constructor)");
     }
@@ -47,11 +48,11 @@ public class HostFragment extends Fragment implements Handler.Callback {
         super.onCreate(savedInstanceState);
         Log.d(TAG, "onCreate()");
 
-        Log.d(TAG, "Broadcast IP: " + ((MainActivity)getActivity()).broadcastIP);
+        Log.d(TAG, "Broadcast IP: " + ((MainActivity) getActivity()).broadcastIP);
         Log.d(TAG, "Device IP: " + ((MainActivity) getActivity()).thisDeviceIP);
 
         mHandler = new Handler(this);
-        mGameServer = new GameServer(MainActivity.SERVER_PORT, mHandler);
+        mGameServer = new GameServer(mHandler);
     }
 
     @Override
@@ -72,11 +73,18 @@ public class HostFragment extends Fragment implements Handler.Callback {
         });
 
         mDiscovery = (ToggleButton) v.findViewById(R.id.discovery);
+        mDiscovery.setChecked(mDiscoveryOn);
         mDiscovery.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                if(isChecked){
-
+                if (isChecked) {
+                    Log.d(TAG, "Starting broadcast");
+                    mDiscoveryOn = true;
+                    startBroadcast();
+                } else {
+                    Log.d(TAG, "Stopping broadcast");
+                    mDiscoveryOn = false;
+                    stopBroadcast();
                 }
             }
         });
@@ -85,20 +93,70 @@ public class HostFragment extends Fragment implements Handler.Callback {
     }
 
     @Override
-    public void onResume(){
+    public void onResume() {
         super.onResume();
 
         // Start the server
-        mGameServer.startServer();
-        mGameServer.startBroadcast();
+        if(mDiscoveryOn) {
+            startBroadcast();
+        }
+        startServer();
     }
 
     @Override
-    public void onPause(){
+    public void onPause() {
         super.onPause();
 
         // Stop the server and broadcast
+        if(mDiscoveryOn) {
+            stopBroadcast();
+        }
+        stopServer();
+    }
+
+    @Override
+    public boolean handleMessage(Message msg) {
+        // TODO Return true when message handled (I think)
+        Bundle data = msg.getData();
+        String event_type = data.getString(GameServer.EVENT_TYPE);
+        Log.d(TAG, "handleMessage() Event type: " + event_type);
+
+        switch (event_type) {
+            case GameServer.EVENT_CLIENT_CONNECT:
+            case GameServer.EVENT_CLIENT_DISCONNECT:
+                updatePlayers();
+                break;
+            case GameServer.EVENT_RECEIVED_BROADCAST:
+                String clientAddress = data.getString(GameServer.ARG_CLIENT_ADDRESS);
+                break;
+            case GameServer.EVENT_MESSAGE_RECEIVED:
+                String clientMessage = data.getString(GameServer.ARG_MESSAGE);
+                switch (clientMessage) {
+                    case MainActivity.MSG_BUZZ_REQUEST:
+                        disableBuzzers(data.getInt(GameServer.ARG_CLIENT_ID));
+                        break;
+                    default:
+                        Log.d(TAG, "Unrecognized message: " + msg);
+                        break;
+                }
+                break;
+            default:
+                Log.d(TAG, "Unrecognized event type: " + event_type);
+                break;
+        }
+        return false;
+    }
+
+    private void startBroadcast() {
+        mGameServer.startBroadcast(MainActivity.MSG_HOST_BROADCAST, MainActivity.SERVER_PORT);
+    }
+    private void stopBroadcast() {
         mGameServer.stopBroadcast();
+    }
+    private void startServer(){
+        mGameServer.startServer(MainActivity.SERVER_PORT);
+    }
+    private void stopServer(){
         mGameServer.stopServer();
     }
 
@@ -106,18 +164,21 @@ public class HostFragment extends Fragment implements Handler.Callback {
         buzzersEnabled = true;
         Set<Integer> clientIDList = mGameServer.getClientIDList();
         for(int clientID : clientIDList){
-            mGameServer.sendMessage(clientID, MainActivity.MSG_ENABLE);
+            mGameServer.sendMessageToClient(clientID, MainActivity.MSG_ENABLE);
         }
     }
 
     private void disableBuzzers(int exceptThisClient){
+        if(buzzersEnabled == false){
+            return;
+        }
         buzzersEnabled = false;
         Set<Integer> clientIDList = mGameServer.getClientIDList();
         for(int clientID : clientIDList){
             if(clientID == exceptThisClient) {
-                mGameServer.sendMessage(clientID, MainActivity.MSG_BUZZ_WIN);
+                mGameServer.sendMessageToClient(clientID, MainActivity.MSG_BUZZ_WIN);
             }else{
-                mGameServer.sendMessage(clientID, MainActivity.MSG_DISABLE);
+                mGameServer.sendMessageToClient(clientID, MainActivity.MSG_DISABLE);
             }
         }
     }
@@ -127,58 +188,6 @@ public class HostFragment extends Fragment implements Handler.Callback {
         TextView tv = new TextView(getActivity());
         tv = (TextView) getActivity().findViewById(R.id.players);
         tv.setText(mGameServer.getClientIDList().size());
-    }
-
-    @Override
-    public boolean handleMessage(Message msg) {
-        Bundle data = msg.getData();
-        String action = data.getString(GameServer.EVENT_TYPE);
-        switch(action){
-            case GameServer.EVENT_CLIENT_CONNECT:
-                break;
-            case GameServer.EVENT_CLIENT_DISCONNECT:
-                break;
-            case GameServer.EVENT_MESSAGE_RECEIVED:
-                String clientMessage = data.getString(GameServer.ARG_MESSAGE);
-                switch(clientMessage){
-                    case MainActivity.MSG_BUZZ_REQUEST:
-                        break;
-                    default:
-                        Log.d(TAG, "Unrecognized message: " + msg);
-                        break;
-                }
-                break;
-            default:
-                Log.d(TAG, "Unrecognized action: " + action);
-                break;
-        }
-        return false;
-    }
-
-    class updateUIThread implements Runnable {
-        private String msg;
-        private int clientID;
-
-        public updateUIThread(int clientID, String str) {
-            this.msg = str;
-            this.clientID = clientID;
-        }
-
-        @Override
-        public void run() {
-            if(msg.equals(MainActivity.MSG_BUZZ_REQUEST) && buzzersEnabled){
-                // This should be thread-safe since it runs on the UI thread
-                disableBuzzers(clientID);
-            }
-            makeText(msg);
-        }
-    }
-
-    class updatePlayersThread implements Runnable{
-        @Override
-        public void run(){
-            updatePlayers();
-        }
     }
 
     private void makeText(final String text){

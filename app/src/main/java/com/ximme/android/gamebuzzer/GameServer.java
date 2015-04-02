@@ -16,6 +16,8 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -30,24 +32,25 @@ public class GameServer {
     public static final String EVENT_CLIENT_CONNECT = "Server.event.client_connect";
     public static final String EVENT_CLIENT_DISCONNECT = "Server.event.client_disconnect";
     public static final String EVENT_MESSAGE_RECEIVED = "Server.event.message_received";
+    public static final String EVENT_RECEIVED_BROADCAST = "Server.event.received_broadcast";
 
     public static final String ARG_CLIENT_ID = "Server.arg.client_id";
     public static final String ARG_MESSAGE = "Server.arg.message";
+    public static final String ARG_CLIENT_ADDRESS = "Server.arg.client_address";
 
     private static final int BROADCAST_INTERVAL = 1000;     // Milliseconds
 
-    private int server_port;
     private Handler mHandler;
 
     private Thread broadcastThread = null;
+    private Thread broadcastListenerThread = null;
+    private DatagramSocket broadcastListenerSocket = null;
     private Thread serverThread = null;
-    //private Runnable newConnectionRunnable = null;
     private ServerSocket serverSocket = null;
     private int nextClientID = 0;
     private HashMap<Integer, ClientConnection> clientConnectionList = new HashMap<>();
 
-    public GameServer(int server_port, Handler handler) {
-        this.server_port = server_port;
+    public GameServer(Handler handler) {
         mHandler = handler;
     }
 
@@ -57,7 +60,7 @@ public class GameServer {
     }
     //*/
 
-    public void startServer() {
+    public void startServer(final int server_port) {
         serverThread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -94,6 +97,7 @@ public class GameServer {
                         //*/
                     } catch (IOException e) {
                         e.printStackTrace();
+                        break;
                     }
                 }
                 Log.d(TAG, "Server thread finished");
@@ -125,23 +129,29 @@ public class GameServer {
         }
     }
 
-    public void startBroadcast() {
+    public void startBroadcast(final String broadcastMessage, final int broadcastPort) {
+        if(broadcastThread != null){
+            Log.e(TAG, "startBroadcast() broadcastThread is not null indicating it is already running, this shouldn't ever happen!");
+            broadcastThread.interrupt();
+        }
         broadcastThread = new Thread(new Runnable() {
             @Override
             public void run() {
+                Log.d(TAG, "startBroadcast()");
                 while (!Thread.currentThread().isInterrupted()) {
-                    sendBroadcast(MainActivity.MSG_HOST_HERE);
+                    sendBroadcast(broadcastMessage, broadcastPort);
                     try {
                         Thread.sleep(BROADCAST_INTERVAL);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
-                        Log.e(TAG, "startBroadcast() Couldn't sleep! Stopping thread");
+                        Log.w(TAG, "startBroadcast() Couldn't sleep - thread must have been interrupted");
                         break;
                     }
                 }
                 Log.d(TAG, "startBroadcast() finished, thread must have been interrupted");
             }
         });
+        broadcastThread.start();
     }
 
     public void stopBroadcast(){
@@ -155,7 +165,70 @@ public class GameServer {
         }
     }
 
-    public void sendMessage(final int clientID, final String msg) {
+    public void startBroadcastListener(final int port){
+        broadcastListenerThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String clientAddress;
+                DatagramPacket packet;
+                Bundle data;
+                Message message;
+
+                while(!Thread.currentThread().isInterrupted()) {
+                    try {
+                        InetAddress broadcastAddress = InetAddress.getByName(Utils.getBroadcastIP());
+                        broadcastListenerSocket = new DatagramSocket(port, broadcastAddress);
+                        byte[] recvBuf = new byte[15000];
+
+                        while(!Thread.currentThread().isInterrupted()) {
+                            packet = new DatagramPacket(recvBuf, recvBuf.length);
+                            Log.d(TAG, "startBroadcastListener() broadcastListenerSocket.receive()");
+                            broadcastListenerSocket.receive(packet);
+                            if(broadcastListenerSocket.isClosed()){
+                                Log.d(TAG, "startBroadcastListener(): broadcastListenerSocket was closed");
+                                return;
+                            }
+
+                            // Packet received
+                            // Get host info
+                            clientAddress = packet.getAddress().getHostAddress();
+                            Log.i(TAG, "Packet received from: " + clientAddress);
+
+                            String msgReceived = new String(packet.getData()).trim();
+                            Log.i(TAG, "Packet received:  " + msgReceived);
+
+                            data = new Bundle();
+                            data.putString(ARG_CLIENT_ADDRESS, clientAddress);
+                            data.putString(EVENT_TYPE, EVENT_RECEIVED_BROADCAST);
+                            data.putString(ARG_MESSAGE, msgReceived);
+
+                            message = new Message();
+                            message.setData(data);
+
+                            mHandler.handleMessage(message);
+                        }
+
+                    } catch (UnknownHostException e) {
+                        e.printStackTrace();
+                    } catch (SocketException e) {
+                        e.printStackTrace();
+                        return;
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        });
+
+        broadcastListenerThread.start();
+    }
+
+    public void stopBroadcastListener(){
+        Log.d(TAG, "stopBraodcastListener()");
+        broadcastListenerSocket.close();
+    }
+
+    public void sendMessageToClient(final int clientID, final String msg) {
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -165,22 +238,28 @@ public class GameServer {
         });
     }
 
+    public void sendMessageToAddress(final String address, final String msg){
+
+    }
+
     public Set<Integer> getClientIDList(){
         return clientConnectionList.keySet();
     }
 
-    private void sendBroadcast(String msg) {
+    private void sendBroadcast(String broadcastMessage, int broadcastPort) {
         try {
             DatagramSocket broadcastSocket = new DatagramSocket();
 
             broadcastSocket.setBroadcast(true);
+            // TODO not necessary to get the broadcast IP each time - more efficient to get it once and save
             InetAddress address = InetAddress.getByName(Utils.getBroadcastIP());
 
             byte[] sendData;
 
-            sendData = msg.getBytes();
-            DatagramPacket packet = new DatagramPacket(sendData, sendData.length, address, server_port);
+            sendData = broadcastMessage.getBytes();
+            DatagramPacket packet = new DatagramPacket(sendData, sendData.length, address, broadcastPort);
             broadcastSocket.send(packet);
+            Log.d(TAG, "sendBroadcast() broadcast sent");
 
             broadcastSocket.close();
         } catch (Exception e) {

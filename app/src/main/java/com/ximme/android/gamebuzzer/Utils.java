@@ -3,6 +3,7 @@ package com.ximme.android.gamebuzzer;
 import android.content.Context;
 import android.net.DhcpInfo;
 import android.net.wifi.WifiManager;
+import android.util.Log;
 
 import org.apache.http.conn.util.InetAddressUtils;
 
@@ -146,9 +147,13 @@ public class Utils {
                 if(!ni.isLoopback()){
                     for (InterfaceAddress interfaceAddress : ni.getInterfaceAddresses())
                     {
-                        found_bcast_address = interfaceAddress.getBroadcast().toString();
-                        found_bcast_address = found_bcast_address.substring(1);
-
+                        InetAddress bcastaddr = interfaceAddress.getBroadcast();
+                        if(bcastaddr == null){
+                            // This is an IPv6 address
+                            continue;
+                        }
+                        found_bcast_address = bcastaddr.toString().substring(1);
+                        Log.d(TAG, "getBroadcastIP(): address: " + found_bcast_address);
                     }
                 }
             }
