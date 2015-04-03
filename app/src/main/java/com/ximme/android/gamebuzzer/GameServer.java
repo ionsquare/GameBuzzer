@@ -28,15 +28,16 @@ import java.util.Set;
 public class GameServer {
     private static final String TAG = GameServer.class.getSimpleName();
 
-    public static final String EVENT_TYPE = "Server.event_type";
-    public static final String EVENT_CLIENT_CONNECT = "Server.event.client_connect";
-    public static final String EVENT_CLIENT_DISCONNECT = "Server.event.client_disconnect";
-    public static final String EVENT_MESSAGE_RECEIVED = "Server.event.message_received";
-    public static final String EVENT_RECEIVED_BROADCAST = "Server.event.received_broadcast";
+    public static final String ARG_EVENT_TYPE = "server.event_type";
+    public static final String EVENT_CLIENT_CONNECT = "server.event.client_connect";
+    public static final String EVENT_CLIENT_DISCONNECT = "server.event.client_disconnect";
+    public static final String EVENT_MESSAGE_RECEIVED = "server.event.message_received";
+    public static final String EVENT_RECEIVED_BROADCAST = "server.event.received_broadcast";
+    public static final String EVENT_CONNECTION_LOST = "server.event.connection_lost";
 
-    public static final String ARG_CLIENT_ID = "Server.arg.client_id";
-    public static final String ARG_MESSAGE = "Server.arg.message";
-    public static final String ARG_CLIENT_ADDRESS = "Server.arg.client_address";
+    public static final String ARG_CLIENT_ID = "server.arg.client_id";
+    public static final String ARG_MESSAGE = "server.arg.message";
+    public static final String ARG_CLIENT_ADDRESS = "server.arg.client_address";
 
     private static final int BROADCAST_INTERVAL = 1000;     // Milliseconds
 
@@ -49,6 +50,10 @@ public class GameServer {
     private ServerSocket serverSocket = null;
     private int nextClientID = 0;
     private HashMap<Integer, ClientConnection> clientConnectionList = new HashMap<>();
+
+    // For client use
+    private Socket hostConnectionSocket = null;
+    private Thread hostListenerThread = null;
 
     public GameServer(Handler handler) {
         mHandler = handler;
@@ -84,11 +89,11 @@ public class GameServer {
 
                         data = new Bundle();
                         data.putInt(ARG_CLIENT_ID, newClient.clientID);
-                        data.putString(EVENT_TYPE, EVENT_CLIENT_CONNECT);
+                        data.putString(ARG_EVENT_TYPE, EVENT_CLIENT_CONNECT);
 
                         msg = new Message();
                         msg.setData(data);
-                        mHandler.handleMessage(msg);
+                        mHandler.sendMessage(msg);
 
                         /*
                         if(newConnectionRunnable != null) {
@@ -122,8 +127,9 @@ public class GameServer {
 
         // Close all client connections
         for (Map.Entry<Integer, ClientConnection> client : clientConnectionList.entrySet()) {
-            Log.d(TAG, "Attempting to enable a buzzer");
+            Log.d(TAG, "Disconnecting from client");
             client.getValue().disconnect();
+            Log.d(TAG, "Disconnected");
             // TODO Do I need to also interrupt the thread? Or will it complete automatically when the socket is closed?
             // client.listenerThread.interrupt();
         }
@@ -199,13 +205,13 @@ public class GameServer {
 
                             data = new Bundle();
                             data.putString(ARG_CLIENT_ADDRESS, clientAddress);
-                            data.putString(EVENT_TYPE, EVENT_RECEIVED_BROADCAST);
+                            data.putString(ARG_EVENT_TYPE, EVENT_RECEIVED_BROADCAST);
                             data.putString(ARG_MESSAGE, msgReceived);
 
                             message = new Message();
                             message.setData(data);
 
-                            mHandler.handleMessage(message);
+                            mHandler.sendMessage(message);
                         }
 
                     } catch (UnknownHostException e) {
@@ -235,7 +241,7 @@ public class GameServer {
                 Log.d(TAG, "Sending message to client: " + clientID);
                 clientConnectionList.get(clientID).sendMessage(msg);
             }
-        });
+        }).start();
     }
 
     public void sendMessageToAddress(final String address, final String msg){
@@ -244,6 +250,117 @@ public class GameServer {
 
     public Set<Integer> getClientIDList(){
         return clientConnectionList.keySet();
+    }
+
+    /**
+     * For use by clients to establish connection to host
+     *
+     * @param address    Address of the host
+     * @param port       Port that the host listens for new connections on
+     */
+    public void initHostConnection(final InetAddress address, final int port){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    hostConnectionSocket = new Socket(address, port);
+                    Log.d(TAG, "initConnection() Socket opened");
+
+                    // TODO Maybe this thread does not need to be kept in a variable
+                    hostListenerThread = new Thread(new ListenerThread(hostConnectionSocket));
+                    hostListenerThread.start();
+                    Log.d(TAG, "initConnection() listenerThread started");
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+            }
+        }).start();
+    }
+
+    public void closeHostConnection(){
+        try {
+            hostConnectionSocket.close();
+            hostConnectionSocket = null;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void sendMessageToHost(final String msg){
+        if(hostConnectionSocket == null || hostConnectionSocket.isClosed()){
+            Log.e(TAG, "sendMessageToHost() cannot send message, host socket is null or closed");
+            return;
+        }
+        new Thread(new Runnable() {
+            public void run() {
+                PrintWriter out = null;
+                try {
+                    out = new PrintWriter(new BufferedWriter(
+                            new OutputStreamWriter(hostConnectionSocket.getOutputStream())),
+                            true);
+                    out.println(msg);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+    }
+
+    /**
+     * Listener thread for use by clients - listens for messages from host and sends events to the
+     * handler.
+     */
+    class ListenerThread implements Runnable {
+        private Socket socket;
+        private BufferedReader input;
+
+        ListenerThread(Socket socket){
+            this.socket = socket;
+            try{
+                this.input = new BufferedReader(new InputStreamReader(this.socket.getInputStream()));
+            }catch(IOException e){
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void run() {
+            Bundle data;
+            Message message;
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    Log.d(TAG, "ListenerThread waiting for message on socket...");
+                    String read = input.readLine();
+                    if(read == null){
+                        // Connection was terminated, notify handler and exit the loop
+                        data = new Bundle();
+                        data.putString(ARG_EVENT_TYPE, EVENT_CONNECTION_LOST);
+
+                        message = new Message();
+                        message.setData(data);
+
+                        mHandler.sendMessage(message);
+
+                        Log.w(TAG, "Listener thread lost connection (read == null)");
+                        break;
+                    }
+                    Log.d(TAG, "ListenerThread received message: " + read);
+                    data = new Bundle();
+                    data.putString(ARG_EVENT_TYPE, EVENT_MESSAGE_RECEIVED);
+                    data.putString(ARG_MESSAGE, read);
+
+                    message = new Message();
+                    message.setData(data);
+
+                    mHandler.sendMessage(message);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            Log.d(TAG, "ListenerThread exiting");
+        }
     }
 
     private void sendBroadcast(String broadcastMessage, int broadcastPort) {
@@ -307,8 +424,9 @@ public class GameServer {
         }
 
         public boolean disconnect() {
+            Log.d(TAG, "ClientConnection.disconnect()");
             try {
-                in.close();
+                socket.close();
             } catch (IOException e) {
                 e.printStackTrace();
                 return false;
@@ -341,34 +459,35 @@ public class GameServer {
 
             while (!Thread.currentThread().isInterrupted()) {
                 try {
-                    Log.d(TAG, "CommunicationThread.run(): listening on socket");
+                    Log.d(TAG, "SocketListenerThread.run(): listening on socket");
 
                     String read = input.readLine();
                     if (read == null) {
                         // Connection was terminated, exit the loop
                         data = new Bundle();
-                        data.putString(EVENT_TYPE, EVENT_CLIENT_DISCONNECT);
+                        data.putString(ARG_EVENT_TYPE, EVENT_CLIENT_DISCONNECT);
                         data.putInt(GameServer.ARG_CLIENT_ID, clientID);
 
                         msg = new Message();
                         msg.setData(data);
-                        mHandler.handleMessage(msg);
+                        mHandler.sendMessage(msg);
                         break;
                     }
 
                     data = new Bundle();
-                    data.putString(EVENT_TYPE, EVENT_MESSAGE_RECEIVED);
+                    data.putString(ARG_EVENT_TYPE, EVENT_MESSAGE_RECEIVED);
                     data.putInt(GameServer.ARG_CLIENT_ID, clientID);
                     data.putString(GameServer.ARG_MESSAGE, read);
 
                     msg = new Message();
                     msg.setData(data);
-                    mHandler.handleMessage(msg);
+                    mHandler.sendMessage(msg);
                 } catch (IOException e) {
                     e.printStackTrace();
+                    break;
                 }
             }
-            Log.d(TAG, "CommunicationThread.run() completed");
+            Log.d(TAG, "SocketListenerThread.run() completed");
         }
     }
 }

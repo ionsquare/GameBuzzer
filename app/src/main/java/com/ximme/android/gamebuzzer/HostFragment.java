@@ -2,6 +2,7 @@ package com.ximme.android.gamebuzzer;
 
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.support.v4.app.Fragment;
 import android.util.Log;
@@ -23,17 +24,17 @@ import java.util.Set;
  * When a buzzer is detected, disable all buzzers; notify successful contestant and tell it to buzz
  */
 
-public class HostFragment extends Fragment implements Handler.Callback {
+public class HostFragment extends Fragment {
     private static final String TAG = HostFragment.class.getSimpleName();
 
     // Layout elements
     private Button mEnableBuzzers;
     private ToggleButton mDiscovery;
+    private TextView mNumPlayers;
 
     // Network
-    Handler mHandler;
+    //HostHandler mHandler;
     GameServer mGameServer;
-    Thread mBroadcastThread = null;
     boolean mDiscoveryOn = true;
 
     private boolean buzzersEnabled = false;
@@ -51,7 +52,44 @@ public class HostFragment extends Fragment implements Handler.Callback {
         Log.d(TAG, "Broadcast IP: " + ((MainActivity) getActivity()).broadcastIP);
         Log.d(TAG, "Device IP: " + ((MainActivity) getActivity()).thisDeviceIP);
 
-        mHandler = new Handler(this);
+        //mHandler = new HostHandler();
+        //*
+        Handler mHandler = new Handler(Looper.getMainLooper()){
+            @Override
+            public void handleMessage(Message msg) {
+                // TODO Return true when message handled (I think)
+                Bundle data = msg.getData();
+                String event_type = data.getString(GameServer.ARG_EVENT_TYPE);
+                Log.d(TAG, "handleMessage() Event type: " + event_type);
+
+                switch (event_type) {
+                    case GameServer.EVENT_CLIENT_CONNECT:
+                    case GameServer.EVENT_CLIENT_DISCONNECT:
+                        String numPlayers = Integer.toString(mGameServer.getClientIDList().size());
+                        mNumPlayers.setText(numPlayers);
+                        //updatePlayers();
+                        break;
+                    case GameServer.EVENT_RECEIVED_BROADCAST:
+                        String clientAddress = data.getString(GameServer.ARG_CLIENT_ADDRESS);
+                        break;
+                    case GameServer.EVENT_MESSAGE_RECEIVED:
+                        String clientMessage = data.getString(GameServer.ARG_MESSAGE);
+                        switch (clientMessage) {
+                            case MainActivity.MSG_BUZZ_REQUEST:
+                                disableBuzzers(data.getInt(GameServer.ARG_CLIENT_ID));
+                                break;
+                            default:
+                                Log.d(TAG, "Unrecognized message: " + msg);
+                                break;
+                        }
+                        break;
+                    default:
+                        Log.d(TAG, "Unrecognized event type: " + event_type);
+                        break;
+                }
+            }
+        };
+        //*/
         mGameServer = new GameServer(mHandler);
     }
 
@@ -71,6 +109,8 @@ public class HostFragment extends Fragment implements Handler.Callback {
                 enableBuzzers();
             }
         });
+
+        mNumPlayers = (TextView) v.findViewById((R.id.players));
 
         mDiscovery = (ToggleButton) v.findViewById(R.id.discovery);
         mDiscovery.setChecked(mDiscoveryOn);
@@ -114,38 +154,42 @@ public class HostFragment extends Fragment implements Handler.Callback {
         stopServer();
     }
 
-    @Override
-    public boolean handleMessage(Message msg) {
-        // TODO Return true when message handled (I think)
-        Bundle data = msg.getData();
-        String event_type = data.getString(GameServer.EVENT_TYPE);
-        Log.d(TAG, "handleMessage() Event type: " + event_type);
+    //*
+    private class HostHandler extends Handler {
+        @Override
+        public void handleMessage(Message msg) {
+            // TODO Return true when message handled (I think)
+            Bundle data = msg.getData();
+            String event_type = data.getString(GameServer.ARG_EVENT_TYPE);
+            Log.d(TAG, "handleMessage() Event type: " + event_type);
 
-        switch (event_type) {
-            case GameServer.EVENT_CLIENT_CONNECT:
-            case GameServer.EVENT_CLIENT_DISCONNECT:
-                updatePlayers();
-                break;
-            case GameServer.EVENT_RECEIVED_BROADCAST:
-                String clientAddress = data.getString(GameServer.ARG_CLIENT_ADDRESS);
-                break;
-            case GameServer.EVENT_MESSAGE_RECEIVED:
-                String clientMessage = data.getString(GameServer.ARG_MESSAGE);
-                switch (clientMessage) {
-                    case MainActivity.MSG_BUZZ_REQUEST:
-                        disableBuzzers(data.getInt(GameServer.ARG_CLIENT_ID));
-                        break;
-                    default:
-                        Log.d(TAG, "Unrecognized message: " + msg);
-                        break;
-                }
-                break;
-            default:
-                Log.d(TAG, "Unrecognized event type: " + event_type);
-                break;
+            switch (event_type) {
+                case GameServer.EVENT_CLIENT_CONNECT:
+                case GameServer.EVENT_CLIENT_DISCONNECT:
+                    mNumPlayers.setText(Integer.toString(mGameServer.getClientIDList().size()));
+                    //updatePlayers();
+                    break;
+                case GameServer.EVENT_RECEIVED_BROADCAST:
+                    String clientAddress = data.getString(GameServer.ARG_CLIENT_ADDRESS);
+                    break;
+                case GameServer.EVENT_MESSAGE_RECEIVED:
+                    String clientMessage = data.getString(GameServer.ARG_MESSAGE);
+                    switch (clientMessage) {
+                        case MainActivity.MSG_BUZZ_REQUEST:
+                            disableBuzzers(data.getInt(GameServer.ARG_CLIENT_ID));
+                            break;
+                        default:
+                            Log.d(TAG, "Unrecognized message: " + msg);
+                            break;
+                    }
+                    break;
+                default:
+                    Log.d(TAG, "Unrecognized event type: " + event_type);
+                    break;
+            }
         }
-        return false;
     }
+    //*/
 
     private void startBroadcast() {
         mGameServer.startBroadcast(MainActivity.MSG_HOST_BROADCAST, MainActivity.SERVER_PORT);
@@ -164,6 +208,7 @@ public class HostFragment extends Fragment implements Handler.Callback {
         buzzersEnabled = true;
         Set<Integer> clientIDList = mGameServer.getClientIDList();
         for(int clientID : clientIDList){
+            Log.d(TAG, "Enabling buzzer for client #" + clientID);
             mGameServer.sendMessageToClient(clientID, MainActivity.MSG_ENABLE);
         }
     }
@@ -184,10 +229,8 @@ public class HostFragment extends Fragment implements Handler.Callback {
     }
 
     private void updatePlayers(){
-        getActivity().setContentView(R.layout.fragment_host);
-        TextView tv = new TextView(getActivity());
-        tv = (TextView) getActivity().findViewById(R.id.players);
-        tv.setText(mGameServer.getClientIDList().size());
+        Log.d(TAG, "updatePlayers()");
+        mNumPlayers.setText(Integer.toString(mGameServer.getClientIDList().size()));
     }
 
     private void makeText(final String text){

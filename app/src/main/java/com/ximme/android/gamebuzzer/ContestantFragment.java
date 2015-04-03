@@ -4,6 +4,7 @@ import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Message;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -13,12 +14,6 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -39,6 +34,7 @@ public class ContestantFragment extends Fragment {
     private Socket socket;
     private Thread listenerThread;
     Handler mHandler;
+    GameServer mGameClient;
 
     // Layout elements
     private Button mBuzz;
@@ -61,12 +57,20 @@ public class ContestantFragment extends Fragment {
 
         Bundle args = getArguments();
         server_ip = args.getString(ARG_HOST_ADDRESS);
+        InetAddress server_address = null;
+        try {
+            server_address = InetAddress.getByName(server_ip);
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+            Log.e(TAG, "Could not get host address!");
+            // TODO Pop the backstack back to the main screen and show toast error message
+        }
 
         Log.d(TAG, "server_ip: " + server_ip);
 
-        mHandler = new Handler();
-        new Thread(new ClientThread()).start();
-
+        mHandler = new ContestantHandler();
+        mGameClient = new GameServer(mHandler);
+        mGameClient.initHostConnection(server_address, MainActivity.SERVER_PORT);
     }
 
     @Override
@@ -116,107 +120,30 @@ public class ContestantFragment extends Fragment {
     }
 
     private void sendBuzzMsg(){
-        new Thread(new Runnable() {
-            public void run() {
-                PrintWriter out = null;
-                try {
-                    out = new PrintWriter(new BufferedWriter(
-                            new OutputStreamWriter(socket.getOutputStream())),
-                            true);
-                } catch (IOException e) {
-                    e.printStackTrace();
+        Log.d(TAG, "Sending Buzz message");
+        mGameClient.sendMessageToHost(MainActivity.MSG_BUZZ_REQUEST);
+        Log.d(TAG, "Buzz message sent");
+    }
+
+    class ContestantHandler extends Handler {
+        @Override
+        public void handleMessage(Message message) {
+            Bundle data = message.getData();
+            String event_type = data.getString(GameServer.ARG_EVENT_TYPE);
+
+            if(event_type.equals(GameServer.EVENT_MESSAGE_RECEIVED)) {
+                String msg = data.getString(GameServer.ARG_MESSAGE);
+                if (msg.equals(MainActivity.MSG_DISABLE)) {
+                    mBuzz.setEnabled(false);
+                } else if (msg.equals(MainActivity.MSG_ENABLE)) {
+                    mBuzz.setEnabled(true);
+                } else if (msg.equals(MainActivity.MSG_BUZZ_WIN)) {
+                    playBuzzSound();
+                } else if (msg.equals(MainActivity.ACTION_CONN_LOST)) {
+
+                } else {
+                    makeText("Unrecognized action: " + msg);
                 }
-                Log.d(TAG, "Sending Buzz message");
-                out.println(MainActivity.MSG_BUZZ_REQUEST);
-                Log.d(TAG, "Buzz message sent");
-            }
-        }).start();
-    }
-
-    class ClientThread implements Runnable {
-
-        @Override
-        public void run() {
-            Log.d(TAG, "ClientThread running");
-            try {
-                InetAddress hostAddress = InetAddress.getByName(server_ip);
-
-                socket = new Socket(hostAddress, MainActivity.SERVER_PORT);
-                Log.d(TAG, "Socket opened");
-
-                // Socket initialized, start listener thread
-                // This will listen for buzzer block instruction
-                listenerThread = new Thread(new ListenerThread(socket));
-                listenerThread.start();
-                Log.d(TAG, "Listener Thread started");
-
-            } catch (UnknownHostException e1) {
-                e1.printStackTrace();
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            }
-
-        }
-
-    }
-
-    /**
-     * Listens for messages from Host
-     */
-    class ListenerThread implements Runnable {
-        private Socket socket;
-        private BufferedReader input;
-
-        ListenerThread(Socket socket){
-            this.socket = socket;
-            try{
-                this.input = new BufferedReader(new InputStreamReader(this.socket.getInputStream()));
-            }catch(IOException e){
-                e.printStackTrace();
-            }
-        }
-
-        @Override
-        public void run() {
-            while (!Thread.currentThread().isInterrupted()) {
-                try {
-                    Log.d(TAG, "ListenerThread waiting for message on socket...");
-                    String read = input.readLine();
-                    if(read == null){
-                        // Connection was terminated, exit the loop
-                        Log.w(TAG, "Listener thread lost connection (read == null)");
-                        mHandler.post(new updateUIThread(MainActivity.ACTION_CONN_LOST));
-                        break;
-                    }
-                    Log.d(TAG, "ListenerThread received message");
-
-                    mHandler.post(new updateUIThread(read));
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
-    class updateUIThread implements Runnable {
-        private String msg;
-
-        public updateUIThread(String str) {
-            this.msg = str;
-        }
-
-        @Override
-        public void run() {
-            if(msg.equals(MainActivity.MSG_DISABLE)){
-                mBuzz.setEnabled(false);
-            }else if(msg.equals(MainActivity.MSG_ENABLE)){
-                mBuzz.setEnabled(true);
-            }else if(msg.equals(MainActivity.MSG_BUZZ_WIN)){
-                playBuzzSound();
-            }else if(msg.equals(MainActivity.ACTION_CONN_LOST)){
-
-            }else{
-                makeText("Unrecognized action: " + msg);
             }
         }
     }

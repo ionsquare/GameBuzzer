@@ -125,7 +125,7 @@ public class FindHostFragment extends Fragment {
         public void handleMessage(Message msg) {
             Log.d(TAG, "handleMessage()");
             Bundle data = msg.getData();
-            String event_type = data.getString(GameServer.EVENT_TYPE);
+            String event_type = data.getString(GameServer.ARG_EVENT_TYPE);
             Log.d(TAG, "handleMessage() Event type: " + event_type);
 
             switch(event_type){
@@ -173,61 +173,6 @@ public class FindHostFragment extends Fragment {
     private void joinHost(){
 
     }
-
-    /*
-    public void startListenerThread(){
-        listenerThread = new Thread(new Runnable() {
-            public void run() {
-                receiveBroadcast();
-            }
-        });
-        listenerThread.start();
-    }
-
-    private void receiveBroadcast(){
-        try {
-            //Keep a socket open to listen to all the UDP traffic that is destined for this port
-            // InetAddress broadcastAddress = Utils.getBroadcastAddress(getActivity());
-            InetAddress broadcastAddress = InetAddress.getByName("127.0.0.1");
-            Log.d(TAG, "broadcastAddress: " + broadcastAddress.getHostAddress());
-
-            DatagramSocket socket = new DatagramSocket(MainActivity.SERVER_PORT,
-                    broadcastAddress);
-//            socket.setBroadcast(true);
-
-            Log.i(TAG, "Ready to receive broadcast packets!");
-
-            //Receive a packet
-            byte[] recvBuf = new byte[15000];
-            DatagramPacket packet = new DatagramPacket(recvBuf, recvBuf.length);
-            socket.receive(packet);
-            socket.close();
-
-            //Packet received
-            Log.i(TAG, "Packet received from: " + packet.getAddress().getHostAddress());
-            String data = new String(packet.getData()).trim();
-            Log.i(TAG, "Packet received; data: " + data);
-
-            // Get host info
-            hostAddress = packet.getAddress();
-            Log.d(TAG, "Host address: " + hostAddress.getHostAddress());
-
-            makeText(data);
-
-            getActivity().runOnUiThread(new Runnable() {
-                public void run() {
-                    ((MainActivity) getActivity()).onJoinHost(hostAddress.getHostAddress());
-                }
-            });
-        } catch (IOException ex) {
-            Log.i(TAG, "Oops" + ex.getMessage());
-            makeText("There was an error, go back and try again");
-            ex.printStackTrace();
-        }
-
-
-    }
-    //*/
 
     private void makeText(final String text){
         getActivity().runOnUiThread(new Runnable() {
