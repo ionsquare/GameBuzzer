@@ -63,8 +63,8 @@ public class HostFragment extends Fragment {
                 Log.d(TAG, "handleMessage() Event type: " + event_type);
 
                 switch (event_type) {
-                    case GameServer.EVENT_CLIENT_CONNECT:
                     case GameServer.EVENT_CLIENT_DISCONNECT:
+                    case GameServer.EVENT_CLIENT_CONNECT:
                         String numPlayers = Integer.toString(mGameServer.getClientIDList().size());
                         mNumPlayers.setText(numPlayers);
                         //updatePlayers();

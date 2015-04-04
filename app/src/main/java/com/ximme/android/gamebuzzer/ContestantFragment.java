@@ -35,6 +35,7 @@ public class ContestantFragment extends Fragment {
     private Thread listenerThread;
     Handler mHandler;
     GameServer mGameClient;
+    InetAddress server_address = null;
 
     // Layout elements
     private Button mBuzz;
@@ -57,7 +58,6 @@ public class ContestantFragment extends Fragment {
 
         Bundle args = getArguments();
         server_ip = args.getString(ARG_HOST_ADDRESS);
-        InetAddress server_address = null;
         try {
             server_address = InetAddress.getByName(server_ip);
         } catch (UnknownHostException e) {
@@ -70,7 +70,6 @@ public class ContestantFragment extends Fragment {
 
         mHandler = new ContestantHandler();
         mGameClient = new GameServer(mHandler);
-        mGameClient.initHostConnection(server_address, MainActivity.SERVER_PORT);
     }
 
     @Override
@@ -97,12 +96,12 @@ public class ContestantFragment extends Fragment {
     @Override
     public  void onResume(){
         super.onResume();
-
+        mGameClient.initHostConnection(server_address, MainActivity.SERVER_PORT);
     }
 
     public void onPause(){
         super.onPause();
-        // TODO Close socket!!
+        mGameClient.closeHostConnection();
 
     }
 
@@ -140,7 +139,9 @@ public class ContestantFragment extends Fragment {
                 } else if (msg.equals(MainActivity.MSG_BUZZ_WIN)) {
                     playBuzzSound();
                 } else if (msg.equals(MainActivity.ACTION_CONN_LOST)) {
-
+                    Log.d(TAG, "Connection lost");
+                } else if (msg.equals(GameServer.MSG_KEEP_ALIVE)) {
+                    Log.d(TAG, "Keep-alive message received");
                 } else {
                     makeText("Unrecognized action: " + msg);
                 }

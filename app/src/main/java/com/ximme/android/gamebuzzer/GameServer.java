@@ -39,17 +39,21 @@ public class GameServer {
     public static final String ARG_MESSAGE = "server.arg.message";
     public static final String ARG_CLIENT_ADDRESS = "server.arg.client_address";
 
-    private static final int BROADCAST_INTERVAL = 1000;     // Milliseconds
+    public static final String MSG_KEEP_ALIVE = "server.msg.keep_alive";
+
+    private static final int INTERVAL_BROADCAST = 1000;     // Milliseconds
+    private static final int INTERVAL_KEEP_ALIVE = 5000;     // Milliseconds
 
     private Handler mHandler;
 
     private Thread broadcastThread = null;
     private Thread broadcastListenerThread = null;
+    private Thread keepAliveThread = null;
     private DatagramSocket broadcastListenerSocket = null;
     private Thread serverThread = null;
     private ServerSocket serverSocket = null;
     private int nextClientID = 0;
-    private HashMap<Integer, ClientConnection> clientConnectionList = new HashMap<>();
+    private HashMap<Integer, ClientConnection> clientConnectionList;
 
     // For client use
     private Socket hostConnectionSocket = null;
@@ -59,12 +63,11 @@ public class GameServer {
         mHandler = handler;
     }
 
-    /*
-    public void setNewConnectionRunnable(Runnable runnable){
-        newConnectionRunnable = runnable;
-    }
-    //*/
-
+    /**
+     * Starts a server to listen for new connections
+     *
+     * @param server_port    Port to listen for connections on
+     */
     public void startServer(final int server_port) {
         serverThread = new Thread(new Runnable() {
             @Override
@@ -79,6 +82,7 @@ public class GameServer {
                     e.printStackTrace();
                     return;
                 }
+                clientConnectionList = new HashMap<>();
                 while (!Thread.currentThread().isInterrupted()) {
                     try {
                         Log.d(TAG, "Listening for socket connection");
@@ -109,8 +113,12 @@ public class GameServer {
             }
         });
         serverThread.start();
+        //startKeepAliveThread();
     }
 
+    /**
+     * Stops the server that listens for new client connections
+     */
     public void stopServer() {
         // Close the server socket
         try {
@@ -133,8 +141,16 @@ public class GameServer {
             // TODO Do I need to also interrupt the thread? Or will it complete automatically when the socket is closed?
             // client.listenerThread.interrupt();
         }
+        //stopKeepAliveThread();
     }
 
+    /**
+     * Starts broadcasting broadcastMessage on the broadcast IP
+     * This is used to let clients know where the host is located so they can initiate a connection
+     *
+     * @param broadcastMessage    The message to broadcast
+     * @param broadcastPort       Port on which to broadcast
+     */
     public void startBroadcast(final String broadcastMessage, final int broadcastPort) {
         if(broadcastThread != null){
             Log.e(TAG, "startBroadcast() broadcastThread is not null indicating it is already running, this shouldn't ever happen!");
@@ -147,7 +163,7 @@ public class GameServer {
                 while (!Thread.currentThread().isInterrupted()) {
                     sendBroadcast(broadcastMessage, broadcastPort);
                     try {
-                        Thread.sleep(BROADCAST_INTERVAL);
+                        Thread.sleep(INTERVAL_BROADCAST);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                         Log.w(TAG, "startBroadcast() Couldn't sleep - thread must have been interrupted");
@@ -160,6 +176,9 @@ public class GameServer {
         broadcastThread.start();
     }
 
+    /**
+     * Stop broadcasting
+     */
     public void stopBroadcast(){
         Log.d(TAG, "stopBroadcast()");
         if(broadcastThread != null) {
@@ -171,6 +190,11 @@ public class GameServer {
         }
     }
 
+    /**
+     * Start listening for broadcasts
+     *
+     * @param port    The port on which to listen for broadcasts
+     */
     public void startBroadcastListener(final int port){
         broadcastListenerThread = new Thread(new Runnable() {
             @Override
@@ -229,11 +253,20 @@ public class GameServer {
         broadcastListenerThread.start();
     }
 
+    /**
+     * Stop listening for broadcasts
+     */
     public void stopBroadcastListener(){
         Log.d(TAG, "stopBraodcastListener()");
         broadcastListenerSocket.close();
     }
 
+    /**
+     * Send a message to a client with which a connection has already been established
+     *
+     * @param clientID    ID of the client to send the message to
+     * @param msg         The message to send to the client
+     */
     public void sendMessageToClient(final int clientID, final String msg) {
         new Thread(new Runnable() {
             @Override
@@ -244,10 +277,11 @@ public class GameServer {
         }).start();
     }
 
-    public void sendMessageToAddress(final String address, final String msg){
-
-    }
-
+    /**
+     * Returns a list of the IDs of the clients currently connected to
+     *
+     * @return the set of client IDs currently connected to
+     */
     public Set<Integer> getClientIDList(){
         return clientConnectionList.keySet();
     }
@@ -288,6 +322,11 @@ public class GameServer {
         }
     }
 
+    /**
+     * Sends a message to the host
+     *
+     * @param msg    Message to send to the host
+     */
     public void sendMessageToHost(final String msg){
         if(hostConnectionSocket == null || hostConnectionSocket.isClosed()){
             Log.e(TAG, "sendMessageToHost() cannot send message, host socket is null or closed");
@@ -306,6 +345,41 @@ public class GameServer {
                 }
             }
         }).start();
+    }
+
+    private void startKeepAliveThread(){
+        keepAliveThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                Set<Integer> clientIDList;
+                
+                while(!Thread.currentThread().isInterrupted()) {
+                    clientIDList = getClientIDList();
+                    for (int clientID : clientIDList) {
+                        Log.d(TAG, "Keep-alive for client #" + clientID);
+                        ClientConnection client = clientConnectionList.get(clientID);
+                        if (client.sendMessage(MSG_KEEP_ALIVE)) {
+                            // An I/O error occurred, remove the client from the list
+                            Log.d(TAG, "Disconnecting from client");
+                            client.disconnect();
+                            clientConnectionList.remove(clientID);
+                        }
+                    }
+                    try {
+                        Thread.sleep(INTERVAL_KEEP_ALIVE);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                        break;
+                    }
+                }
+                Log.e(TAG, "Keep alive thread stopping");
+            }
+        });
+        keepAliveThread.start();
+    }
+
+    private void stopKeepAliveThread(){
+        keepAliveThread.interrupt();
     }
 
     /**
@@ -357,12 +431,20 @@ public class GameServer {
                     mHandler.sendMessage(message);
                 } catch (IOException e) {
                     e.printStackTrace();
+                    break;
                 }
             }
             Log.d(TAG, "ListenerThread exiting");
         }
     }
 
+    /**
+     * Sends broadcast message
+     * Must not be run on the UI thread
+     *
+     * @param broadcastMessage    Message to broadcast
+     * @param broadcastPort       Port on which to broadcast to
+     */
     private void sendBroadcast(String broadcastMessage, int broadcastPort) {
         try {
             DatagramSocket broadcastSocket = new DatagramSocket();
@@ -419,8 +501,15 @@ public class GameServer {
             }
         }
 
-        public void sendMessage(String msg) {
+        /**
+         * Returns true if the BufferedWriter encounters an I/O error
+         *
+         * @param msg    Message to send to the host
+         * @return true if there was an I/O error, false otherwise
+         */
+        public boolean sendMessage(String msg) {
             out.println(msg);
+            return out.checkError();
         }
 
         public boolean disconnect() {
@@ -464,6 +553,11 @@ public class GameServer {
                     String read = input.readLine();
                     if (read == null) {
                         // Connection was terminated, exit the loop
+
+                        // Remove client from client list
+                        clientConnectionList.remove(clientID);
+
+                        // Notify handler of disconnect event
                         data = new Bundle();
                         data.putString(ARG_EVENT_TYPE, EVENT_CLIENT_DISCONNECT);
                         data.putInt(GameServer.ARG_CLIENT_ID, clientID);
